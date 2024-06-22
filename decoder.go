@@ -55,9 +55,14 @@ func main() {
 	}
 }
 
-// mov Register/memory to/from register
-func decode100010(buffer []byte, file *os.File) string {
-	const operator = "mov"
+// ====================
+// ===== DECODERS =====
+// ====================
+
+func decodeRegMemToFromReg(buffer []byte, file *os.File) string {
+	opcode := buffer[0] >> 2 // Operation code
+	operator := operators[opcode]
+
 	d := buffer[0] & 2 >> 1 // direction to/from register
 	w := buffer[0] & 1      // word/byte operator
 
@@ -99,9 +104,9 @@ func decode100010(buffer []byte, file *os.File) string {
 	)
 }
 
-// mov immediate to register
-func decode1011(buffer []byte, file *os.File) string {
-	const operator = "mov"
+func decodeImediateTORegister(buffer []byte, file *os.File) string {
+	opcode := buffer[0] >> 2 // Operation code
+	operator := operators[opcode]
 
 	// Parse first byte
 	w := buffer[0] & 0b00001000 >> 3
@@ -126,6 +131,10 @@ func decode1011(buffer []byte, file *os.File) string {
 		operand2,
 	)
 }
+
+// =================
+// ===== UTILS =====
+// =================
 
 func getData8(file *os.File) int8 {
 	buffer := make([]byte, 1)
@@ -164,16 +173,27 @@ func getMemoryCalculation(mod byte, rm byte, file *os.File) string {
 	panic("No match for MOD")
 }
 
+// ====================
+// ====== TABLES ======
+// ====================
+
 // Reference table 4-12 8086 Instruction Encoding
-var decoders = map[uint8]func([]byte, *os.File) string{
-	0b100010: decode100010, // mov register/memory to/from register
-	// 0b110001: // mov immediate to register/memory
-	0b101100: decode1011, // mov immediate to register
-	0b101101: decode1011, // mov immediate to register
-	0b101110: decode1011, // mov immediate to register
-	0b101111: decode1011, // mov immediate to register
-	// 0b101000: // mov memory to accumulator / Accumulator to memory
-	// 0b100011: // mov megister/memory to segment register / Segment register to register/memory
+var decoders = map[byte]func([]byte, *os.File) string{
+	0b000000: decodeRegMemToFromReg,    // ADD reg/memory with register to either
+	0b100010: decodeRegMemToFromReg,    // MOV register/memory to/from register
+	0b101100: decodeImediateTORegister, // MOV immediate to register
+	0b101101: decodeImediateTORegister, // MOV immediate to register
+	0b101110: decodeImediateTORegister, // MOV immediate to register
+	0b101111: decodeImediateTORegister, // MOV immediate to register
+}
+
+var operators = map[byte]string{
+	0b000000: "add",
+	0b000001: "add",
+	0b100010: "mov",
+	0b101100: "mov",
+	0b101101: "mov",
+	0b101110: "mov",
 }
 
 // Reference Table 4-9 Register Encoding
