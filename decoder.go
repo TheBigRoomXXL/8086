@@ -4,14 +4,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 )
 
-func checkRead(n int, err error) {
+func checkRead(_ int, err error) {
 	if err != nil {
 		panic(err)
-	}
-	if n != 1 {
-		panic(fmt.Sprintf("wtf, not exactly %d bytes read", n))
 	}
 }
 
@@ -43,16 +41,25 @@ func main() {
 		// Each operation code require different parsing rule.
 		// Each operator can have multiple operation code.
 		opcode := buffer[0] >> 2 // Operation code
-		instruction := decoders[opcode](buffer, file)
+		decoder := decoders[opcode]
+		if decoder == nil {
+			panic(
+				fmt.Sprintf(
+					"Decoder for opcode %06b not implemented yet", opcode,
+				),
+			)
+		}
+
+		instruction := decoder(buffer, file)
 		fmt.Println(instruction)
 	}
 }
 
-// Register/memory to/from register
+// mov Register/memory to/from register
 func decode100010(buffer []byte, file *os.File) string {
-	const operator = "MOV"
-	d := buffer[0] & 2 // direction to/from register
-	w := buffer[0] & 1 // word/byte operator
+	const operator = "mov"
+	d := buffer[0] & 2 >> 1 // direction to/from register
+	w := buffer[0] & 1      // word/byte operator
 
 	// Parse second byte
 	checkRead(file.Read(buffer))
@@ -61,76 +68,160 @@ func decode100010(buffer []byte, file *os.File) string {
 	reg := buffer[0] >> 3 & 7 // Register operand/extension of opcode
 	rm := buffer[0] & 7       // Register operand/extension to use in EA calculation
 
-	// // Debug
-	// fmt.Printf("%b %b \n", b1[0], b2[0])
-
-	// fmt.Printf("opcode %06b - %s \n", opcode, opcodeToInstruct[opcode])
-	// fmt.Printf("d      %01b \n", d)
-	// fmt.Printf("w      %01b \n", w)
-	// fmt.Printf("mod    %02b - %s \n", mod, modeToLabel[int8(mod)])
-	// fmt.Printf("reg    %03b \n", reg)
-	// fmt.Printf("rm     %03b \n", rm)
-
 	// Result
-	operand1 := byte(0)
-	operand2 := byte(0)
+	operand1 := ""
+	regkey := reg<<1 | w
+	operand1 = registers[regkey]
 
-	if mod != 0b11 {
-		panic("not implemented yet")
+	operand2 := ""
+	switch mod {
+	case 0b00: // Memory Mode, no displacement
+		addrKey := mod<<3 | rm
+		operand2 = addressCalculations[addrKey]
+	case 0b01: // Memory Mode, 8-bit displacement
+		regkey := reg<<1 | w
+		operand1 = registers[regkey]
+
+		addrKey := mod<<3 | rm
+		addr := addressCalculations[addrKey]
+
+		d8 := fmt.Sprintf("%d", getData8(file))
+		operand2 = strings.Replace(addr, "D8", d8, 1)
+
+	case 0b10: //Memory Mode, 16-bit displacement
+		regkey := reg<<1 | w
+		operand1 = registers[regkey]
+
+		addrKey := mod<<3 | rm
+		addr := addressCalculations[addrKey]
+
+		d16 := fmt.Sprintf("%d", getData16(file))
+		operand2 = strings.Replace(addr, "D16", d16, 1)
+
+	case 0b11: // Register Mode, no displacement
+		regKey1 := rm<<1 | w
+		regKey2 := reg<<1 | w
+		operand1 = registers[regKey1]
+		operand2 = registers[regKey2]
 	}
 
+	operand2 = strings.ReplaceAll(operand2, " + 0", "")
+
+	// Handle direction swap (write instead of read)
 	if d == 0 {
-		operand1 = rm<<1 | w
-		operand2 = reg<<1 | w
-	} else {
-		operand1 = reg<<1 | w
-		operand2 = rm<<1 | w
+		return fmt.Sprintf("%s %s, %s",
+			operator,
+			operand2,
+			operand1,
+		)
 	}
 
 	return fmt.Sprintf("%s %s, %s",
 		operator,
-		registers[int8(operand1)],
-		registers[int8(operand2)],
+		operand1,
+		operand2,
 	)
+}
+
+// mov immediate to register
+func decode1011(buffer []byte, file *os.File) string {
+	const operator = "mov"
+
+	// Parse first byte
+	w := buffer[0] & 0b00001000 >> 3
+	reg := buffer[0] & 0b00000111
+
+	regKey := reg<<1 | w
+	operand1 := registers[regKey]
+
+	// Parse the immediate
+	operand2 := ""
+	if w == 0 {
+		data := getData8(file)
+		operand2 = fmt.Sprintf("%d", data)
+	} else {
+		data := getData16(file)
+		operand2 = fmt.Sprintf("%d", data)
+	}
+
+	return fmt.Sprintf("%s %s, %s",
+		operator,
+		operand1,
+		operand2,
+	)
+}
+
+func getData8(file *os.File) int8 {
+	buffer := make([]byte, 1)
+	checkRead(file.Read(buffer))
+	return int8(buffer[0])
+}
+
+func getData16(file *os.File) int16 {
+	buffer := make([]byte, 2)
+	checkRead(file.Read(buffer))
+	return int16(buffer[1])<<8 | int16(buffer[0])
 }
 
 // Reference table 4-12 8086 Instruction Encoding
 var decoders = map[uint8]func([]byte, *os.File) string{
-	0b100010: decode100010, // MOV register/memory to/from register
-	// 0b110001: // MOV immediate to register/memory
-	// 0b101100: // MOV immediate to register
-	// 0b101101: // MOV immediate to register
-	// 0b101110: // MOV immediate to register
-	// 0b101111: // MOV immediate to register
-	// 0b101000: // MOV memory to accumulator / Accumulator to memory
-	// 0b100011: // MOV megister/memory to segment register / Segment register to register/memory
+	0b100010: decode100010, // mov register/memory to/from register
+	// 0b110001: // mov immediate to register/memory
+	0b101100: decode1011, // mov immediate to register
+	0b101101: decode1011, // mov immediate to register
+	0b101110: decode1011, // mov immediate to register
+	0b101111: decode1011, // mov immediate to register
+	// 0b101000: // mov memory to accumulator / Accumulator to memory
+	// 0b100011: // mov megister/memory to segment register / Segment register to register/memory
 }
 
-// Reference Table 4-8 MOD(Mode) Field Encoding
-// var modeToLabel = map[int8]string{
-// 	0b00: "Memory Mode, no displacement",
-// 	0b01: "Memory Mode, 8-bit displacement",
-// 	0b10: "Memory Mode, 16-bit displacement",
-// 	0b11: "Register Mode, no displacement",
-// }
+// Reference Table 4-9 Register Encoding
+// Fist 3 bits come from REG (or RM if MOD=0b11) and last one from W
+var registers = map[byte]string{
+	0b0000: "al",
+	0b0010: "cl",
+	0b0100: "dl",
+	0b0110: "bl",
+	0b1000: "ah",
+	0b1010: "ch",
+	0b1100: "dh",
+	0b1110: "bh",
+	0b0001: "ax",
+	0b0011: "cx",
+	0b0101: "dx",
+	0b0111: "bx",
+	0b1001: "sp",
+	0b1011: "bp",
+	0b1101: "si",
+	0b1111: "di",
+}
 
-// Reference Table 4-9 REG(Register) Encoding
-// Fist 3 bits come from REG and last one from W
-var registers = map[int8]string{
-	0b0000: "AL",
-	0b0010: "CL",
-	0b0100: "DL",
-	0b0110: "BL",
-	0b1000: "AH",
-	0b1010: "CH",
-	0b1100: "DH",
-	0b1110: "BH",
-	0b0001: "AX",
-	0b0011: "CX",
-	0b0101: "DX",
-	0b0111: "BX",
-	0b1001: "SP",
-	0b1011: "BP",
-	0b1101: "SI",
-	0b1111: "DI",
+// Reference table 4-10 Register/Memory Field Encoding
+// First 2 bits are MOD, tree next are RM
+// MOD cannot be 11 as it mean a register encoding, not memory
+var addressCalculations = map[byte]string{
+	0b00000: "[bx + si]",
+	0b00001: "[bx + di]",
+	0b00010: "[bp + si]",
+	0b00011: "[bp + di]",
+	0b00100: "[si]",
+	0b00101: "[di]",
+	0b00110: "DIRECT ADDRESS",
+	0b00111: "[bx",
+	0b01000: "[bx + si + D8]",
+	0b01001: "[bx + di + D8]",
+	0b01010: "[bp + si + D8]",
+	0b01011: "[bp + di + D8]",
+	0b01100: "[si + D8]",
+	0b01101: "[di + D8]",
+	0b01110: "[bp + D8]",
+	0b01111: "[bx + D8]",
+	0b10000: "[bx + si + D16]",
+	0b10001: "[bx + di + D16]",
+	0b10010: "[bp + si + D16]",
+	0b10011: "[bp + di + D16]",
+	0b10100: "[si + D16]",
+	0b10101: "[di + D16]",
+	0b10110: "[bp + D16]",
+	0b10111: "[bx + D16]",
 }
