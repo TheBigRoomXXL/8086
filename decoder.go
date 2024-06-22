@@ -79,9 +79,6 @@ func decode100010(buffer []byte, file *os.File) string {
 		addrKey := mod<<3 | rm
 		operand2 = addressCalculations[addrKey]
 	case 0b01: // Memory Mode, 8-bit displacement
-		regkey := reg<<1 | w
-		operand1 = registers[regkey]
-
 		addrKey := mod<<3 | rm
 		addr := addressCalculations[addrKey]
 
@@ -89,9 +86,6 @@ func decode100010(buffer []byte, file *os.File) string {
 		operand2 = strings.Replace(addr, "D8", d8, 1)
 
 	case 0b10: //Memory Mode, 16-bit displacement
-		regkey := reg<<1 | w
-		operand1 = registers[regkey]
-
 		addrKey := mod<<3 | rm
 		addr := addressCalculations[addrKey]
 
@@ -99,9 +93,7 @@ func decode100010(buffer []byte, file *os.File) string {
 		operand2 = strings.Replace(addr, "D16", d16, 1)
 
 	case 0b11: // Register Mode, no displacement
-		regKey1 := rm<<1 | w
-		regKey2 := reg<<1 | w
-		operand1 = registers[regKey1]
+		regKey2 := rm<<1 | w
 		operand2 = registers[regKey2]
 	}
 
