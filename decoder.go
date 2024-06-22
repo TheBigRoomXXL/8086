@@ -43,7 +43,7 @@ func decodeInstruction(assembly *os.File) bool {
 		return true
 	}
 
-	// mod := b2[0] >> 6     // Register / memory mode
+	mod := b2[0] >> 6     // Register / memory mode
 	reg := b2[0] >> 3 & 7 // Register operand/extension of opcode
 	rm := b2[0] & 7       // Register operand/extension to use in EA calculation
 
@@ -60,6 +60,10 @@ func decodeInstruction(assembly *os.File) bool {
 	// Result
 	operand1 := byte(0)
 	operand2 := byte(0)
+
+	if mod != 0b11 {
+		panic("not implemented yet")
+	}
 
 	if d == 0 {
 		operand1 = rm<<1 | w
