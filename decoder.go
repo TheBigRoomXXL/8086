@@ -74,27 +74,11 @@ func decode100010(buffer []byte, file *os.File) string {
 	operand1 = registers[regkey]
 
 	operand2 := ""
-	switch mod {
-	case 0b00: // Memory Mode, no displacement
-		addrKey := mod<<3 | rm
-		operand2 = addressCalculations[addrKey]
-	case 0b01: // Memory Mode, 8-bit displacement
-		addrKey := mod<<3 | rm
-		addr := addressCalculations[addrKey]
-
-		d8 := fmt.Sprintf("%d", getData8(file))
-		operand2 = strings.Replace(addr, "D8", d8, 1)
-
-	case 0b10: //Memory Mode, 16-bit displacement
-		addrKey := mod<<3 | rm
-		addr := addressCalculations[addrKey]
-
-		d16 := fmt.Sprintf("%d", getData16(file))
-		operand2 = strings.Replace(addr, "D16", d16, 1)
-
-	case 0b11: // Register Mode, no displacement
+	if mod == 0b11 {
 		regKey2 := rm<<1 | w
 		operand2 = registers[regKey2]
+	} else {
+		operand2 = getMemoryCalculation(mod, rm, file)
 	}
 
 	operand2 = strings.ReplaceAll(operand2, " + 0", "")
@@ -153,6 +137,31 @@ func getData16(file *os.File) int16 {
 	buffer := make([]byte, 2)
 	checkRead(file.Read(buffer))
 	return int16(buffer[1])<<8 | int16(buffer[0])
+}
+
+func getMemoryCalculation(mod byte, rm byte, file *os.File) string {
+	switch mod {
+	case 0b00: // Memory Mode, no displacement
+		addrKey := mod<<3 | rm
+		return addressCalculations[addrKey]
+	case 0b01: // Memory Mode, 8-bit displacement
+		addrKey := mod<<3 | rm
+		addr := addressCalculations[addrKey]
+
+		d8 := fmt.Sprintf("%d", getData8(file))
+		return strings.Replace(addr, "D8", d8, 1)
+
+	case 0b10: //Memory Mode, 16-bit displacement
+		addrKey := mod<<3 | rm
+		addr := addressCalculations[addrKey]
+
+		d16 := fmt.Sprintf("%d", getData16(file))
+		return strings.Replace(addr, "D16", d16, 1)
+
+	case 0b11: // Register Mode, no displacement
+		panic("No memory calculation when MOD == 0b11")
+	}
+	panic("No match for MOD")
 }
 
 // Reference table 4-12 8086 Instruction Encoding
