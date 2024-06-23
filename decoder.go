@@ -60,10 +60,11 @@ func main() {
 // ====================
 
 func decodeRegMemToFromReg(buffer []byte, file *os.File) string {
+	// Parse First byte
 	opcode := buffer[0] >> 2 // Operation code
 	operator := operators[opcode]
 
-	d := buffer[0] & 2 >> 1 // direction to/from register
+	d := buffer[0] >> 1 & 1 // direction to/from register
 	w := buffer[0] & 1      // word/byte operator
 
 	// Parse second byte
@@ -104,11 +105,11 @@ func decodeRegMemToFromReg(buffer []byte, file *os.File) string {
 	)
 }
 
-func decodeImediateTORegister(buffer []byte, file *os.File) string {
+func decodeImediateToRegister(buffer []byte, file *os.File) string {
+	// Parse first byte
 	opcode := buffer[0] >> 2 // Operation code
 	operator := operators[opcode]
 
-	// Parse first byte
 	w := buffer[0] & 0b00001000 >> 3
 	reg := buffer[0] & 0b00000111
 
@@ -130,6 +131,85 @@ func decodeImediateTORegister(buffer []byte, file *os.File) string {
 		operand1,
 		operand2,
 	)
+}
+
+func decodeImediateToregisterMemory(buffer []byte, file *os.File) string {
+	s := buffer[0] >> 1 & 1
+	w := buffer[0] & 1
+	// Parse second byte
+	checkRead(file.Read(buffer))
+
+	mod := buffer[0] >> 6 // Register / memory mode
+	opcodeHint := buffer[0] >> 3 & 0b111
+	rm := buffer[0] & 7 // Register operand/extension to use in EA calculation
+
+	// Result
+	operator := operatorsArithmetic[opcodeHint]
+
+	operand1 := ""
+	if mod == 0b11 {
+		regkey := rm<<1 | w
+		operand1 = registers[regkey]
+	} else {
+		operand1 = getMemoryCalculation(mod, rm, file)
+	}
+
+	operand2 := ""
+	if s == 0 && w == 0 {
+		operand2 = fmt.Sprintf("%d", uint8(getData8(file)))
+	} else if s == 1 && w == 0 {
+		operand2 = fmt.Sprintf("%d", getData8(file))
+	} else if s == 0 && w == 1 {
+		operand2 = fmt.Sprintf("%d", uint16(getData16(file)))
+	} else if s == 1 && w == 1 {
+		operand2 = fmt.Sprintf("%d", getData8(file))
+	} else {
+		panic("should not happen")
+	}
+
+	return fmt.Sprintf("%s %s, %s",
+		operator,
+		operand1,
+		operand2,
+	)
+}
+
+func decodeImediateToAccumulator(buffer []byte, file *os.File) string {
+	opcode := buffer[0] >> 2 // Operation code
+	operator := operators[opcode]
+	w := buffer[0] & 1
+
+	operand1 := ""
+	if w == 0 {
+		operand1 = "al"
+
+	} else {
+		operand1 = "ax"
+	}
+
+	operand2 := ""
+	if w == 0 {
+		data := getData8(file)
+		operand2 = fmt.Sprintf("%d", data)
+	} else {
+		data := getData16(file)
+		operand2 = fmt.Sprintf("%d", data)
+	}
+
+	return fmt.Sprintf("%s %s, %s",
+		operator,
+		operand1,
+		operand2,
+	)
+}
+
+func decodeCondJumpAndLoop(buffer []byte, file *os.File) string {
+	operatorHint := buffer[0] & 0b11111
+	operator := operatorsJumps[operatorHint]
+
+	location := getData8(file)
+
+	return fmt.Sprintf("%s %d", operator, location)
 }
 
 // =================
@@ -179,21 +259,67 @@ func getMemoryCalculation(mod byte, rm byte, file *os.File) string {
 
 // Reference table 4-12 8086 Instruction Encoding
 var decoders = map[byte]func([]byte, *os.File) string{
-	0b000000: decodeRegMemToFromReg,    // ADD reg/memory with register to either
-	0b100010: decodeRegMemToFromReg,    // MOV register/memory to/from register
-	0b101100: decodeImediateTORegister, // MOV immediate to register
-	0b101101: decodeImediateTORegister, // MOV immediate to register
-	0b101110: decodeImediateTORegister, // MOV immediate to register
-	0b101111: decodeImediateTORegister, // MOV immediate to register
+	0b100010: decodeRegMemToFromReg,          // MOV
+	0b101100: decodeImediateToRegister,       // MOV
+	0b101101: decodeImediateToRegister,       // MOV
+	0b101110: decodeImediateToRegister,       // MOV
+	0b101111: decodeImediateToRegister,       // MOV
+	0b100000: decodeImediateToregisterMemory, // ADD SUB CMP
+	0b000000: decodeRegMemToFromReg,          // ADD
+	0b000001: decodeImediateToAccumulator,    // ADD
+	0b001010: decodeRegMemToFromReg,          // SUB
+	0b001011: decodeImediateToAccumulator,    // SUB
+	0b001110: decodeRegMemToFromReg,          // CMP
+	0b001111: decodeImediateToAccumulator,    // CMP
+	0b011100: decodeCondJumpAndLoop,          // CONDITIONAL JUMPS
+	0b011101: decodeCondJumpAndLoop,          // CONDITIONAL JUMPS
+	0b011110: decodeCondJumpAndLoop,          // CONDITIONAL JUMPS
+	0b011111: decodeCondJumpAndLoop,          // CONDITIONAL JUMPS
+	0b111000: decodeCondJumpAndLoop,          // CONDITIONAL JUMPS
 }
 
 var operators = map[byte]string{
-	0b000000: "add",
-	0b000001: "add",
 	0b100010: "mov",
 	0b101100: "mov",
 	0b101101: "mov",
 	0b101110: "mov",
+	0b000000: "add",
+	0b000001: "add",
+	0b001010: "sub",
+	0b001011: "sub",
+	0b001110: "cmp",
+	0b001111: "cmp",
+	0b011101: "jnz",
+}
+
+// The key is the last 5 bits of the first byte
+var operatorsJumps = map[byte]string{
+	0b10100: "je",
+	0b11100: "jl",
+	0b11110: "jle",
+	0b10010: "jb",
+	0b10110: "jbe",
+	0b11010: "jp",
+	0b10000: "jo",
+	0b11000: "js",
+	0b10101: "jnz",
+	0b11101: "jge",
+	0b11111: "jg",
+	0b10011: "jnb",
+	0b10111: "ja",
+	0b11011: "jpo",
+	0b10001: "jno",
+	0b11001: "jns",
+	0b00010: "loop",
+	0b00001: "loopz",
+	0b00000: "loopnz",
+	0b00011: "jcxz",
+}
+
+var operatorsArithmetic = map[byte]string{
+	0b010: "add",
+	0b101: "sub",
+	0b111: "cmp",
 }
 
 // Reference Table 4-9 Register Encoding
