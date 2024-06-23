@@ -134,8 +134,10 @@ func decodeImediateToRegister(buffer []byte, file *os.File) string {
 }
 
 func decodeImediateToregisterMemory(buffer []byte, file *os.File) string {
+	// Parse first byte
 	s := buffer[0] >> 1 & 1
 	w := buffer[0] & 1
+
 	// Parse second byte
 	checkRead(file.Read(buffer))
 
@@ -275,7 +277,7 @@ var decoders = map[byte]func([]byte, *os.File) string{
 	0b011101: decodeCondJumpAndLoop,          // CONDITIONAL JUMPS
 	0b011110: decodeCondJumpAndLoop,          // CONDITIONAL JUMPS
 	0b011111: decodeCondJumpAndLoop,          // CONDITIONAL JUMPS
-	0b111000: decodeCondJumpAndLoop,          // CONDITIONAL JUMPS
+	0b111000: decodeCondJumpAndLoop,          // LOOP
 }
 
 var operators = map[byte]string{
