@@ -11,6 +11,7 @@ type Instruction struct {
 	operator     string
 	operandLeft  string
 	operandRight string
+	w            byte
 }
 
 func (i *Instruction) String() string {
@@ -122,6 +123,7 @@ func decodeRegMemToFromReg(buffer []byte, file *os.File) Instruction {
 			operator,
 			operand2,
 			operand1,
+			w,
 		}
 	}
 
@@ -129,6 +131,7 @@ func decodeRegMemToFromReg(buffer []byte, file *os.File) Instruction {
 		operator,
 		operand1,
 		operand2,
+		w,
 	}
 }
 
@@ -163,6 +166,7 @@ func decodeImediateToRegister(buffer []byte, file *os.File) Instruction {
 		operator,
 		operand1,
 		operand2,
+		w,
 	}
 }
 
@@ -211,6 +215,7 @@ func decodeImediateToregisterMemory(buffer []byte, file *os.File) Instruction {
 		operator,
 		operand1,
 		operand2,
+		w,
 	}
 }
 
@@ -245,6 +250,7 @@ func decodeImediateToAccumulator(buffer []byte, file *os.File) Instruction {
 		operator,
 		operand1,
 		operand2,
+		w,
 	}
 }
 
@@ -261,6 +267,7 @@ func decodeCondJumpAndLoop(buffer []byte, file *os.File) Instruction {
 		operator,
 		fmt.Sprintf("%d", location),
 		"",
+		0,
 	}
 }
 
