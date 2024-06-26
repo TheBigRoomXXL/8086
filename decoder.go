@@ -7,14 +7,28 @@ import (
 	"strings"
 )
 
-func checkRead(_ int, err error) {
-	if err != nil {
-		panic(err)
-	}
+type Instruction struct {
+	operator     string
+	operandLeft  string
+	operandRight string
 }
 
-func main() {
-	filePath := os.Args[1]
+func (i *Instruction) String() string {
+	if i.operandRight == "" {
+		return fmt.Sprintf("%s %s",
+			i.operator,
+			i.operandLeft,
+		)
+	}
+
+	return fmt.Sprintf("%s %s, %s",
+		i.operator,
+		i.operandLeft,
+		i.operandRight,
+	)
+}
+
+func Decode(filePath string) []Instruction {
 
 	// Open file with assembly insructions to decode
 	file, err := os.Open(filePath)
@@ -23,7 +37,8 @@ func main() {
 	}
 	defer file.Close()
 
-	// Iterate over each instructiob, decoding them one by one
+	// Iterate over each instruction, decoding them one by one
+	instructions := []Instruction{}
 	for {
 		// We will parse instructions byte by byte
 		buffer := make([]byte, 1)
@@ -40,26 +55,35 @@ func main() {
 		// This byte contain the operation code.
 		// Each operation code require different parsing rule.
 		// Each operator can have multiple operation code.
+		// Some operation code can represent multiple operator.
 		opcode := buffer[0] >> 2 // Operation code
 		decoder := decoders[opcode]
 		if decoder == nil {
 			panic(
 				fmt.Sprintf(
-					"Decoder for opcode %06b not implemented yet", opcode,
+					"Decoder for opcode %06b not implemented.", opcode,
 				),
 			)
 		}
 
 		instruction := decoder(buffer, file)
-		fmt.Println(instruction)
+		fmt.Println(&instruction)
+		instructions = append(instructions, instruction)
 	}
+	return instructions
 }
 
 // ====================
 // ===== DECODERS =====
 // ====================
 
-func decodeRegMemToFromReg(buffer []byte, file *os.File) string {
+// It's possible to write a generic parser for 8086 but it's complicated and
+// require extensive knowledge of all the small exceptions contained in the
+// 8086 encoding. So i will not try do do that and instead group instructions
+// by there type of memory / register / immediate access as it is the main
+// determinator of how an instruction will be parsed.
+
+func decodeRegMemToFromReg(buffer []byte, file *os.File) Instruction {
 	// Parse First byte
 	opcode := buffer[0] >> 2 // Operation code
 	operator := operators[opcode]
@@ -91,21 +115,21 @@ func decodeRegMemToFromReg(buffer []byte, file *os.File) string {
 
 	// Handle direction swap (write instead of read)
 	if d == 0 {
-		return fmt.Sprintf("%s %s, %s",
+		return Instruction{
 			operator,
 			operand2,
 			operand1,
-		)
+		}
 	}
 
-	return fmt.Sprintf("%s %s, %s",
+	return Instruction{
 		operator,
 		operand1,
 		operand2,
-	)
+	}
 }
 
-func decodeImediateToRegister(buffer []byte, file *os.File) string {
+func decodeImediateToRegister(buffer []byte, file *os.File) Instruction {
 	// Parse first byte
 	opcode := buffer[0] >> 2 // Operation code
 	operator := operators[opcode]
@@ -126,14 +150,14 @@ func decodeImediateToRegister(buffer []byte, file *os.File) string {
 		operand2 = fmt.Sprintf("%d", data)
 	}
 
-	return fmt.Sprintf("%s %s, %s",
+	return Instruction{
 		operator,
 		operand1,
 		operand2,
-	)
+	}
 }
 
-func decodeImediateToregisterMemory(buffer []byte, file *os.File) string {
+func decodeImediateToregisterMemory(buffer []byte, file *os.File) Instruction {
 	// Parse first byte
 	s := buffer[0] >> 1 & 1
 	w := buffer[0] & 1
@@ -169,18 +193,19 @@ func decodeImediateToregisterMemory(buffer []byte, file *os.File) string {
 		panic("should not happen")
 	}
 
-	return fmt.Sprintf("%s %s, %s",
+	return Instruction{
 		operator,
 		operand1,
 		operand2,
-	)
+	}
 }
 
-func decodeImediateToAccumulator(buffer []byte, file *os.File) string {
+func decodeImediateToAccumulator(buffer []byte, file *os.File) Instruction {
 	opcode := buffer[0] >> 2 // Operation code
 	operator := operators[opcode]
 	w := buffer[0] & 1
 
+	// Accumulator is just a fancy name for the register A
 	operand1 := ""
 	if w == 0 {
 		operand1 = "al"
@@ -189,6 +214,7 @@ func decodeImediateToAccumulator(buffer []byte, file *os.File) string {
 		operand1 = "ax"
 	}
 
+	// Parsing second (and potentially third) byte
 	operand2 := ""
 	if w == 0 {
 		data := getData8(file)
@@ -198,25 +224,35 @@ func decodeImediateToAccumulator(buffer []byte, file *os.File) string {
 		operand2 = fmt.Sprintf("%d", data)
 	}
 
-	return fmt.Sprintf("%s %s, %s",
+	return Instruction{
 		operator,
 		operand1,
 		operand2,
-	)
+	}
 }
 
-func decodeCondJumpAndLoop(buffer []byte, file *os.File) string {
+func decodeCondJumpAndLoop(buffer []byte, file *os.File) Instruction {
 	operatorHint := buffer[0] & 0b11111
 	operator := operatorsJumps[operatorHint]
 
 	location := getData8(file)
 
-	return fmt.Sprintf("%s %d", operator, location)
+	return Instruction{
+		operator,
+		fmt.Sprintf("%d", location),
+		"",
+	}
 }
 
 // =================
 // ===== UTILS =====
 // =================
+
+func checkRead(_ int, err error) {
+	if err != nil {
+		panic(err)
+	}
+}
 
 func getData8(file *os.File) int8 {
 	buffer := make([]byte, 1)
@@ -259,8 +295,16 @@ func getMemoryCalculation(mod byte, rm byte, file *os.File) string {
 // ====== TABLES ======
 // ====================
 
+// A choose to use a table driven approche as using tables to parse
+// instructions is simple, efficient and extendable.
+
+// The following tables could be optimise to be more generic if they encoded
+// the protocol in a smarter way. But 8086 encoding is a mess and I will not
+// maintain this codebase so i am just keeping things simple, not doing
+// anything smart.
+
 // Reference table 4-12 8086 Instruction Encoding
-var decoders = map[byte]func([]byte, *os.File) string{
+var decoders = map[byte]func([]byte, *os.File) Instruction{
 	0b100010: decodeRegMemToFromReg,          // MOV
 	0b101100: decodeImediateToRegister,       // MOV
 	0b101101: decodeImediateToRegister,       // MOV
