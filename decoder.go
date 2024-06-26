@@ -86,7 +86,10 @@ func Decode(filePath string) []Instruction {
 func decodeRegMemToFromReg(buffer []byte, file *os.File) Instruction {
 	// Parse First byte
 	opcode := buffer[0] >> 2 // Operation code
-	operator := operators[opcode]
+	operator, ok := operators[opcode]
+	if !ok {
+		panic(fmt.Sprintf("operator for opcode %06b not found", opcode))
+	}
 
 	d := buffer[0] >> 1 & 1 // direction to/from register
 	w := buffer[0] & 1      // word/byte operator
@@ -132,13 +135,21 @@ func decodeRegMemToFromReg(buffer []byte, file *os.File) Instruction {
 func decodeImediateToRegister(buffer []byte, file *os.File) Instruction {
 	// Parse first byte
 	opcode := buffer[0] >> 2 // Operation code
-	operator := operators[opcode]
+	operator, ok := operators[opcode]
+	if !ok {
+		panic(fmt.Sprintf("operator for opcode %06b not found", opcode))
+	}
+
+	fmt.Printf("%06b %s -> ", opcode, operator)
 
 	w := buffer[0] & 0b00001000 >> 3
 	reg := buffer[0] & 0b00000111
 
 	regKey := reg<<1 | w
-	operand1 := registers[regKey]
+	operand1, ok := registers[regKey]
+	if !ok {
+		panic(fmt.Sprintf("register for %06b not found", regKey))
+	}
 
 	// Parse the immediate
 	operand2 := ""
@@ -175,7 +186,12 @@ func decodeImediateToregisterMemory(buffer []byte, file *os.File) Instruction {
 	operand1 := ""
 	if mod == 0b11 {
 		regkey := rm<<1 | w
-		operand1 = registers[regkey]
+		op, ok := registers[regkey]
+		if !ok {
+			panic(fmt.Sprintf("register for %06b not found", regkey))
+		}
+		operand1 = op
+
 	} else {
 		operand1 = getMemoryCalculation(mod, rm, file)
 	}
@@ -202,7 +218,10 @@ func decodeImediateToregisterMemory(buffer []byte, file *os.File) Instruction {
 
 func decodeImediateToAccumulator(buffer []byte, file *os.File) Instruction {
 	opcode := buffer[0] >> 2 // Operation code
-	operator := operators[opcode]
+	operator, ok := operators[opcode]
+	if !ok {
+		panic(fmt.Sprintf("operator for opcode %06b not found", opcode))
+	}
 	w := buffer[0] & 1
 
 	// Accumulator is just a fancy name for the register A
@@ -233,7 +252,10 @@ func decodeImediateToAccumulator(buffer []byte, file *os.File) Instruction {
 
 func decodeCondJumpAndLoop(buffer []byte, file *os.File) Instruction {
 	operatorHint := buffer[0] & 0b11111
-	operator := operatorsJumps[operatorHint]
+	operator, ok := operatorsJumps[operatorHint]
+	if !ok {
+		panic("jump operator for %05b not found")
+	}
 
 	location := getData8(file)
 
@@ -329,6 +351,7 @@ var operators = map[byte]string{
 	0b101100: "mov",
 	0b101101: "mov",
 	0b101110: "mov",
+	0b101111: "mov",
 	0b000000: "add",
 	0b000001: "add",
 	0b001010: "sub",
