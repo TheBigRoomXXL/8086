@@ -140,8 +140,6 @@ func decodeImediateToRegister(buffer []byte, file *os.File) Instruction {
 		panic(fmt.Sprintf("operator for opcode %06b not found", opcode))
 	}
 
-	fmt.Printf("%06b %s -> ", opcode, operator)
-
 	w := buffer[0] & 0b00001000 >> 3
 	reg := buffer[0] & 0b00000111
 
