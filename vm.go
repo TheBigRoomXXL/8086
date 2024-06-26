@@ -63,16 +63,25 @@ func Execute(instructions []Instruction) {
 }
 
 func mov(vm *VM, i Instruction) {
-	offset := registersOffsets[i.operandLeft]
+	start := registersOffsets[i.operandLeft]
+	size := 1 + i.w
+	end := start + int8(size)
 
 	value, err := strconv.ParseInt(i.operandRight, 10, 16)
 	if err != nil {
 		panic(err)
 	}
 
+	fmt.Printf("writing %d byte at offset %d: 0x%02x",
+		size,
+		start,
+		vm.registers[start:end],
+	)
+
 	b := make([]byte, 2)
 	binary.LittleEndian.PutUint16(b, uint16(value))
-	copy(vm.registers[offset:], b[0:01+i.w])
+	copy(vm.registers[start:], b[0:1+i.w])
+	fmt.Printf("-> 0x%02x\n", vm.registers[start:end])
 
 }
 
