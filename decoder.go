@@ -179,10 +179,10 @@ func decodeImediateToregisterMemory(buffer []byte, file *os.File) Instruction {
 	checkRead(file.Read(buffer))
 
 	mod := buffer[0] >> 6 // Register / memory mode
-	opcodeHint := buffer[0] >> 3 & 0b111
-	rm := buffer[0] & 7 // Register operand/extension to use in EA calculation
+	rm := buffer[0] & 7   // Register operand/extension to use in EA calculation
 
 	// Result
+	opcodeHint := buffer[0] >> 3 & 0b111
 	operator := operatorsArithmetic[opcodeHint]
 
 	operand1 := ""
@@ -391,7 +391,7 @@ var operatorsJumps = map[byte]string{
 }
 
 var operatorsArithmetic = map[byte]string{
-	0b010: "add",
+	0b000: "add",
 	0b101: "sub",
 	0b111: "cmp",
 }
