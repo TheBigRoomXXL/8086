@@ -11,6 +11,7 @@ type VM struct {
 	memory    [1024 * 1024]byte // 1Mb memory
 }
 
+// I LOVE ASCII TABLES
 func (vm VM) PrintRegistersBinary() {
 	r := vm.registers
 
@@ -69,7 +70,9 @@ func mov(vm *VM, i Instruction) {
 
 	value, err := strconv.ParseInt(i.operandRight, 10, 16)
 	if err != nil {
-		panic(err)
+		// Then operandRight is a register / memory
+		reg := registersOffsets[i.operandRight]
+		value = int64(vm.registers[reg])
 	}
 
 	fmt.Printf("writing %d byte at offset %d: 0x%02x",
