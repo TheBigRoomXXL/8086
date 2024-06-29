@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"io"
-	"os"
 	"strings"
 )
 
@@ -29,49 +28,35 @@ func (i *Instruction) String() string {
 	)
 }
 
-func Decode(filePath string) []Instruction {
+// Decode the next instruction in the instruction bus
+func Decode(bus io.Reader) (Instruction, error) {
 
-	// Open file with assembly insructions to decode
-	file, err := os.Open(filePath)
+	buffer := make([]byte, 1)
+
+	_, err := bus.Read(buffer)
 	if err != nil {
-		panic("fail to open file")
-	}
-	defer file.Close()
-
-	// Iterate over each instruction, decoding them one by one
-	instructions := []Instruction{}
-	for {
-		// We will parse instructions byte by byte
-		buffer := make([]byte, 1)
-
-		_, err := file.Read(buffer)
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			panic(err)
+		if err == io.EOF {
+			return Instruction{}, err
 		}
-
-		// Each instruction is at least 1 byte long.
-		// This byte contain the operation code.
-		// Each operation code require different parsing rule.
-		// Each operator can have multiple operation code.
-		// Some operation code can represent multiple operator.
-		opcode := buffer[0] >> 2 // Operation code
-		decoder := decoders[opcode]
-		if decoder == nil {
-			panic(
-				fmt.Sprintf(
-					"Decoder for opcode %06b not implemented.", opcode,
-				),
-			)
-		}
-
-		instruction := decoder(buffer, file)
-		fmt.Println(&instruction)
-		instructions = append(instructions, instruction)
+		panic(err)
 	}
-	return instructions
+
+	// Each instruction is at least 1 byte long.
+	// This byte contain the operation code.
+	// Each operation code require different parsing rule.
+	// Each operator can have multiple operation code.
+	// Some operation code can represent multiple operator.
+	opcode := buffer[0] >> 2 // Operation code
+	decoder := decoders[opcode]
+	if decoder == nil {
+		panic(
+			fmt.Sprintf(
+				"Decoder for opcode %06b not implemented.", opcode,
+			),
+		)
+	}
+
+	return decoder(buffer, bus), nil
 }
 
 // ====================
@@ -84,7 +69,8 @@ func Decode(filePath string) []Instruction {
 // by there type of memory / register / immediate access as it is the main
 // determinator of how an instruction will be parsed.
 
-func decodeRegMemToFromReg(buffer []byte, file *os.File) Instruction {
+func decodeRegMemToFromReg(buffer []byte, bus io.Reader) Instruction {
+
 	// Parse First byte
 	opcode := buffer[0] >> 2 // Operation code
 	operator, ok := operators[opcode]
@@ -96,7 +82,7 @@ func decodeRegMemToFromReg(buffer []byte, file *os.File) Instruction {
 	w := buffer[0] & 1      // word/byte operator
 
 	// Parse second byte
-	checkRead(file.Read(buffer))
+	checkRead(bus.Read(buffer))
 
 	mod := buffer[0] >> 6     // Register / memory mode
 	reg := buffer[0] >> 3 & 7 // Register operand/extension of opcode
@@ -112,7 +98,7 @@ func decodeRegMemToFromReg(buffer []byte, file *os.File) Instruction {
 		regKey2 := rm<<1 | w
 		operand2 = registers[regKey2]
 	} else {
-		operand2 = getMemoryCalculation(mod, rm, file)
+		operand2 = getMemoryCalculation(mod, rm, bus)
 	}
 
 	operand2 = strings.ReplaceAll(operand2, " + 0", "")
@@ -135,7 +121,7 @@ func decodeRegMemToFromReg(buffer []byte, file *os.File) Instruction {
 	}
 }
 
-func decodeImediateToRegister(buffer []byte, file *os.File) Instruction {
+func decodeImediateToRegister(buffer []byte, bus io.Reader) Instruction {
 	// Parse first byte
 	opcode := buffer[0] >> 2 // Operation code
 	operator, ok := operators[opcode]
@@ -155,10 +141,10 @@ func decodeImediateToRegister(buffer []byte, file *os.File) Instruction {
 	// Parse the immediate
 	operand2 := ""
 	if w == 0 {
-		data := getData8(file)
+		data := getData8(bus)
 		operand2 = fmt.Sprintf("%d", data)
 	} else {
-		data := getData16(file)
+		data := getData16(bus)
 		operand2 = fmt.Sprintf("%d", data)
 	}
 
@@ -170,13 +156,13 @@ func decodeImediateToRegister(buffer []byte, file *os.File) Instruction {
 	}
 }
 
-func decodeImediateToregisterMemory(buffer []byte, file *os.File) Instruction {
+func decodeImediateToregisterMemory(buffer []byte, bus io.Reader) Instruction {
 	// Parse first byte
 	s := buffer[0] >> 1 & 1
 	w := buffer[0] & 1
 
 	// Parse second byte
-	checkRead(file.Read(buffer))
+	checkRead(bus.Read(buffer))
 
 	mod := buffer[0] >> 6 // Register / memory mode
 	rm := buffer[0] & 7   // Register operand/extension to use in EA calculation
@@ -195,18 +181,18 @@ func decodeImediateToregisterMemory(buffer []byte, file *os.File) Instruction {
 		operand1 = op
 
 	} else {
-		operand1 = getMemoryCalculation(mod, rm, file)
+		operand1 = getMemoryCalculation(mod, rm, bus)
 	}
 
 	operand2 := ""
 	if s == 0 && w == 0 {
-		operand2 = fmt.Sprintf("%d", uint8(getData8(file)))
+		operand2 = fmt.Sprintf("%d", uint8(getData8(bus)))
 	} else if s == 1 && w == 0 {
-		operand2 = fmt.Sprintf("%d", getData8(file))
+		operand2 = fmt.Sprintf("%d", getData8(bus))
 	} else if s == 0 && w == 1 {
-		operand2 = fmt.Sprintf("%d", uint16(getData16(file)))
+		operand2 = fmt.Sprintf("%d", uint16(getData16(bus)))
 	} else if s == 1 && w == 1 {
-		operand2 = fmt.Sprintf("%d", getData8(file))
+		operand2 = fmt.Sprintf("%d", getData8(bus))
 	} else {
 		panic("should not happen")
 	}
@@ -219,7 +205,7 @@ func decodeImediateToregisterMemory(buffer []byte, file *os.File) Instruction {
 	}
 }
 
-func decodeImediateToAccumulator(buffer []byte, file *os.File) Instruction {
+func decodeImediateToAccumulator(buffer []byte, bus io.Reader) Instruction {
 	opcode := buffer[0] >> 2 // Operation code
 	operator, ok := operators[opcode]
 	if !ok {
@@ -239,10 +225,10 @@ func decodeImediateToAccumulator(buffer []byte, file *os.File) Instruction {
 	// Parsing second (and potentially third) byte
 	operand2 := ""
 	if w == 0 {
-		data := getData8(file)
+		data := getData8(bus)
 		operand2 = fmt.Sprintf("%d", data)
 	} else {
-		data := getData16(file)
+		data := getData16(bus)
 		operand2 = fmt.Sprintf("%d", data)
 	}
 
@@ -254,14 +240,14 @@ func decodeImediateToAccumulator(buffer []byte, file *os.File) Instruction {
 	}
 }
 
-func decodeCondJumpAndLoop(buffer []byte, file *os.File) Instruction {
+func decodeCondJumpAndLoop(buffer []byte, bus io.Reader) Instruction {
 	operatorHint := buffer[0] & 0b11111
 	operator, ok := operatorsJumps[operatorHint]
 	if !ok {
 		panic("jump operator for %05b not found")
 	}
 
-	location := getData8(file)
+	location := getData8(bus)
 
 	return Instruction{
 		operator,
@@ -281,19 +267,19 @@ func checkRead(_ int, err error) {
 	}
 }
 
-func getData8(file *os.File) int8 {
+func getData8(bus io.Reader) int8 {
 	buffer := make([]byte, 1)
-	checkRead(file.Read(buffer))
+	checkRead(bus.Read(buffer))
 	return int8(buffer[0])
 }
 
-func getData16(file *os.File) int16 {
+func getData16(bus io.Reader) int16 {
 	buffer := make([]byte, 2)
-	checkRead(file.Read(buffer))
+	checkRead(bus.Read(buffer))
 	return int16(buffer[1])<<8 | int16(buffer[0])
 }
 
-func getMemoryCalculation(mod byte, rm byte, file *os.File) string {
+func getMemoryCalculation(mod byte, rm byte, bus io.Reader) string {
 	switch mod {
 	case 0b00: // Memory Mode, no displacement
 		addrKey := mod<<3 | rm
@@ -302,14 +288,14 @@ func getMemoryCalculation(mod byte, rm byte, file *os.File) string {
 		addrKey := mod<<3 | rm
 		addr := addressCalculations[addrKey]
 
-		d8 := fmt.Sprintf("%d", getData8(file))
+		d8 := fmt.Sprintf("%d", getData8(bus))
 		return strings.Replace(addr, "D8", d8, 1)
 
 	case 0b10: //Memory Mode, 16-bit displacement
 		addrKey := mod<<3 | rm
 		addr := addressCalculations[addrKey]
 
-		d16 := fmt.Sprintf("%d", getData16(file))
+		d16 := fmt.Sprintf("%d", getData16(bus))
 		return strings.Replace(addr, "D16", d16, 1)
 
 	case 0b11: // Register Mode, no displacement
@@ -331,7 +317,7 @@ func getMemoryCalculation(mod byte, rm byte, file *os.File) string {
 // anything smart.
 
 // Reference table 4-12 8086 Instruction Encoding
-var decoders = map[byte]func([]byte, *os.File) Instruction{
+var decoders = map[byte]func([]byte, io.Reader) Instruction{
 	0b100010: decodeRegMemToFromReg,          // MOV
 	0b101100: decodeImediateToRegister,       // MOV
 	0b101101: decodeImediateToRegister,       // MOV

@@ -1,16 +1,21 @@
 package main
 
 import (
-	"fmt"
 	"os"
 )
 
-func main() {
-	fmt.Println("====== DECODING ======")
-	instructionsPath := os.Args[1]
-	instructions := Decode(instructionsPath)
+type VM struct {
+	storage [18]byte // 9 * 16bits register
+}
 
-	fmt.Println("")
-	fmt.Println("====== EXECUTING ======")
-	Execute(instructions)
+func main() {
+	// Open file with assembly insructions to decode
+	filePath := os.Args[1]
+	file, err := os.Open(filePath)
+	if err != nil {
+		panic("fail to open file")
+	}
+	defer file.Close()
+
+	Execute(file)
 }

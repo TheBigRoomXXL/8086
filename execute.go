@@ -3,12 +3,22 @@ package main
 import (
 	"encoding/binary"
 	"fmt"
+	"io"
 	"strconv"
 )
 
-func Execute(instructions []Instruction) {
+func Execute(bus io.ReadSeeker) {
 	vm := VM{}
-	for _, i := range instructions {
+	for {
+		i, err := Decode(bus)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			panic(err)
+		}
+		fmt.Printf("%s: ", &i)
+
 		switch i.operator {
 		case "mov":
 			vm.mov(i)
@@ -28,10 +38,6 @@ func Execute(instructions []Instruction) {
 
 }
 
-type VM struct {
-	storage [18]byte // 9 * 16bits register
-}
-
 // ========================
 // ===== INSTRUCTIONS =====
 // ========================
@@ -41,8 +47,7 @@ func (vm *VM) mov(i Instruction) {
 
 	value := vm.getOperandAsBytes(i.operandRight, size)
 
-	fmt.Printf("writing %d byte at offset %d: 0x%02x",
-		size,
+	fmt.Printf("writing at offset %d: 0x%02x",
 		start,
 		vm.storage[start:end],
 	)
