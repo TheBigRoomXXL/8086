@@ -19,18 +19,18 @@ func Execute(bus io.ReadSeeker) {
 		}
 		fmt.Printf("%s: ", &i)
 
-		switch i.operator {
-		case "mov":
-			vm.mov(i)
-		case "add":
-			vm.add(i)
-		case "sub":
-			vm.sub(i)
-		case "cmp":
-			vm.cmp(i)
-		default:
-			panic(fmt.Sprintf("Operator %s not implemented", i.operator))
-		}
+		// switch i.operator {
+		// case "mov":
+		// 	vm.mov(i)
+		// case "add":
+		// 	vm.add(i)
+		// case "sub":
+		// 	vm.sub(i)
+		// case "cmp":
+		// 	vm.cmp(i)
+		// default:
+		// 	panic(fmt.Sprintf("Operator %s not implemented", i.operator))
+		// }
 		fmt.Print("\n")
 	}
 

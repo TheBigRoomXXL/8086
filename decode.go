@@ -6,11 +6,30 @@ import (
 	"strings"
 )
 
+// Wraps a io.Reader with a counter so that we can keep track of the
+// instruction length as we read.
+// Seek is a needed for jumps instruction
+type ReaderCounter struct {
+	reader io.Reader
+	count  int
+}
+
+func (r *ReaderCounter) Read(p []byte) (int, error) {
+	n, err := r.reader.Read(p)
+	r.count += n
+	return n, err
+}
+
+func (r ReaderCounter) GetCount() int {
+	return r.count
+}
+
 type Instruction struct {
 	operator     string
 	operandLeft  string
 	operandRight string
 	w            byte
+	size         int
 }
 
 func (i *Instruction) String() string {
@@ -29,7 +48,8 @@ func (i *Instruction) String() string {
 }
 
 // Decode the next instruction in the instruction bus
-func Decode(bus io.Reader) (Instruction, error) {
+func Decode(_bus io.Reader) (Instruction, error) {
+	bus := ReaderCounter{_bus, 0}
 
 	buffer := make([]byte, 1)
 
@@ -56,7 +76,7 @@ func Decode(bus io.Reader) (Instruction, error) {
 		)
 	}
 
-	return decoder(buffer, bus), nil
+	return decoder(buffer, &bus), nil
 }
 
 // ====================
@@ -69,8 +89,7 @@ func Decode(bus io.Reader) (Instruction, error) {
 // by there type of memory / register / immediate access as it is the main
 // determinator of how an instruction will be parsed.
 
-func decodeRegMemToFromReg(buffer []byte, bus io.Reader) Instruction {
-
+func decodeRegMemToFromReg(buffer []byte, bus *ReaderCounter) Instruction {
 	// Parse First byte
 	opcode := buffer[0] >> 2 // Operation code
 	operator, ok := operators[opcode]
@@ -110,6 +129,7 @@ func decodeRegMemToFromReg(buffer []byte, bus io.Reader) Instruction {
 			operand2,
 			operand1,
 			w,
+			bus.GetCount(),
 		}
 	}
 
@@ -118,10 +138,11 @@ func decodeRegMemToFromReg(buffer []byte, bus io.Reader) Instruction {
 		operand1,
 		operand2,
 		w,
+		bus.GetCount(),
 	}
 }
 
-func decodeImediateToRegister(buffer []byte, bus io.Reader) Instruction {
+func decodeImediateToRegister(buffer []byte, bus *ReaderCounter) Instruction {
 	// Parse first byte
 	opcode := buffer[0] >> 2 // Operation code
 	operator, ok := operators[opcode]
@@ -153,10 +174,11 @@ func decodeImediateToRegister(buffer []byte, bus io.Reader) Instruction {
 		operand1,
 		operand2,
 		w,
+		bus.GetCount(),
 	}
 }
 
-func decodeImediateToregisterMemory(buffer []byte, bus io.Reader) Instruction {
+func decodeImediateToregisterMemory(buffer []byte, bus *ReaderCounter) Instruction {
 	// Parse first byte
 	s := buffer[0] >> 1 & 1
 	w := buffer[0] & 1
@@ -202,10 +224,11 @@ func decodeImediateToregisterMemory(buffer []byte, bus io.Reader) Instruction {
 		operand1,
 		operand2,
 		w,
+		bus.GetCount(),
 	}
 }
 
-func decodeImediateToAccumulator(buffer []byte, bus io.Reader) Instruction {
+func decodeImediateToAccumulator(buffer []byte, bus *ReaderCounter) Instruction {
 	opcode := buffer[0] >> 2 // Operation code
 	operator, ok := operators[opcode]
 	if !ok {
@@ -237,10 +260,11 @@ func decodeImediateToAccumulator(buffer []byte, bus io.Reader) Instruction {
 		operand1,
 		operand2,
 		w,
+		bus.GetCount(),
 	}
 }
 
-func decodeCondJumpAndLoop(buffer []byte, bus io.Reader) Instruction {
+func decodeCondJumpAndLoop(buffer []byte, bus *ReaderCounter) Instruction {
 	operatorHint := buffer[0] & 0b11111
 	operator, ok := operatorsJumps[operatorHint]
 	if !ok {
@@ -254,6 +278,7 @@ func decodeCondJumpAndLoop(buffer []byte, bus io.Reader) Instruction {
 		fmt.Sprintf("%d", location),
 		"",
 		0,
+		bus.GetCount(),
 	}
 }
 
@@ -267,19 +292,19 @@ func checkRead(_ int, err error) {
 	}
 }
 
-func getData8(bus io.Reader) int8 {
+func getData8(bus *ReaderCounter) int8 {
 	buffer := make([]byte, 1)
 	checkRead(bus.Read(buffer))
 	return int8(buffer[0])
 }
 
-func getData16(bus io.Reader) int16 {
+func getData16(bus *ReaderCounter) int16 {
 	buffer := make([]byte, 2)
 	checkRead(bus.Read(buffer))
 	return int16(buffer[1])<<8 | int16(buffer[0])
 }
 
-func getMemoryCalculation(mod byte, rm byte, bus io.Reader) string {
+func getMemoryCalculation(mod byte, rm byte, bus *ReaderCounter) string {
 	switch mod {
 	case 0b00: // Memory Mode, no displacement
 		addrKey := mod<<3 | rm
@@ -317,7 +342,7 @@ func getMemoryCalculation(mod byte, rm byte, bus io.Reader) string {
 // anything smart.
 
 // Reference table 4-12 8086 Instruction Encoding
-var decoders = map[byte]func([]byte, io.Reader) Instruction{
+var decoders = map[byte]func([]byte, *ReaderCounter) Instruction{
 	0b100010: decodeRegMemToFromReg,          // MOV
 	0b101100: decodeImediateToRegister,       // MOV
 	0b101101: decodeImediateToRegister,       // MOV
