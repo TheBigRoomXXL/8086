@@ -19,22 +19,22 @@ func Execute(bus io.ReadSeeker) {
 		}
 		fmt.Printf("%s: ", &i)
 
-		// switch i.operator {
-		// case "mov":
-		// 	vm.mov(i)
-		// case "add":
-		// 	vm.add(i)
-		// case "sub":
-		// 	vm.sub(i)
-		// case "cmp":
-		// 	vm.cmp(i)
-		// default:
-		// 	panic(fmt.Sprintf("Operator %s not implemented", i.operator))
-		// }
+		switch i.operator {
+		case "mov":
+			vm.mov(i)
+		case "add":
+			vm.add(i)
+		case "sub":
+			vm.sub(i)
+		case "cmp":
+			vm.cmp(i)
+		default:
+			panic(fmt.Sprintf("Operator %s not implemented", i.operator))
+		}
 		fmt.Print("\n")
 	}
 
-	vm.PrintRegistersBinary()
+	vm.PrintRegistersHex()
 
 }
 
@@ -43,68 +43,45 @@ func Execute(bus io.ReadSeeker) {
 // ========================
 
 func (vm *VM) mov(i Instruction) {
-	start, size, end := vm.getWriteInfos(i)
-
+	size := int8(1 + i.w)
 	value := vm.getOperandAsBytes(i.operandRight, size)
-
-	fmt.Printf("writing at offset %d: 0x%02x",
-		start,
-		vm.storage[start:end],
-	)
-
-	copy(vm.storage[start:], value)
-
-	fmt.Printf("-> 0x%02x", vm.storage[start:end])
+	vm.setRegister(i.operandLeft, value)
 }
 
 func (vm *VM) add(i Instruction) {
-	start, size, end := vm.getWriteInfos(i)
+	size := int8(1 + i.w)
 
 	valueA := vm.getOperandAsInt(i.operandLeft, size)
 	valueB := vm.getOperandAsInt(i.operandRight, size)
-
-	fmt.Printf("writing %d byte at offset %d: 0x%02x",
-		size,
-		start,
-		vm.storage[start:end],
-	)
 
 	valueInt := valueA + valueB
 	valueBytes := make([]byte, size)
 	binary.LittleEndian.PutUint16(valueBytes, valueInt)
 
-	copy(vm.storage[start:], valueBytes)
-	fmt.Printf("-> 0x%02x", vm.storage[start:end])
+	vm.setRegister(i.operandLeft, valueBytes)
 
 	vm.setZeroFlag(valueInt == 0)
 	vm.setSignFlag(valueBytes[size-1]>>7 == 1)
 }
 
 func (vm *VM) sub(i Instruction) {
-	start, size, end := vm.getWriteInfos(i)
+	size := int8(1 + i.w)
 
 	valueA := vm.getOperandAsInt(i.operandLeft, size)
 	valueB := vm.getOperandAsInt(i.operandRight, size)
-
-	fmt.Printf("writing %d byte at offset %d: 0x%02x",
-		size,
-		start,
-		vm.storage[start:end],
-	)
 
 	valueInt := valueA - valueB
 	valueBytes := make([]byte, size)
 	binary.LittleEndian.PutUint16(valueBytes, valueInt)
 
-	copy(vm.storage[start:], valueBytes)
-	fmt.Printf("-> 0x%02x", vm.storage[start:end])
+	vm.setRegister(i.operandLeft, valueBytes)
 
 	vm.setZeroFlag(valueInt == 0)
 	vm.setSignFlag(valueBytes[size-1]>>7 == 1)
 }
 
 func (vm *VM) cmp(i Instruction) {
-	_, size, _ := vm.getWriteInfos(i)
+	size := int8(1 + i.w)
 
 	valueA := vm.getOperandAsInt(i.operandLeft, size)
 	valueB := vm.getOperandAsInt(i.operandRight, size)
@@ -122,14 +99,6 @@ func (vm *VM) cmp(i Instruction) {
 // =================
 // ===== UTILS =====
 // =================
-
-// Determine where the instruction will have to write it's result
-func (*VM) getWriteInfos(i Instruction) (int8, int8, int8) {
-	start := registersOffsets[i.operandLeft]
-	size := int8(1 + i.w)
-	end := start + int8(size)
-	return start, size, end
-}
 
 // Return the imediate value or lookup the register.
 // Memory acces not implemented.
@@ -163,6 +132,14 @@ func (vm *VM) getOperandAsInt(operand string, size int8) uint16 {
 		)
 	}
 	return value
+}
+
+func (vm *VM) setRegister(reg string, value []byte) {
+	offset := registersOffsets[reg]
+	fmt.Printf("(%s 0x%02x->", reg, vm.storage[offset:offset+2])
+	copy(vm.storage[offset:], value)
+	fmt.Printf("(0x%02x) ", vm.storage[offset:offset+2])
+
 }
 
 func (vm *VM) setZeroFlag(flag bool) {
