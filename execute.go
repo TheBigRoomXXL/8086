@@ -18,6 +18,7 @@ func Execute(bus io.ReadSeeker) {
 			panic(err)
 		}
 		fmt.Printf("%s: ", &i)
+		vm.incrementIP(i.size)
 
 		switch i.operator {
 		case "mov":
@@ -100,6 +101,10 @@ func (vm *VM) cmp(i Instruction) {
 // ===== UTILS =====
 // =================
 
+type VM struct {
+	storage [20]byte // 9 * 16bits register
+}
+
 // Return the imediate value or lookup the register.
 // Memory acces not implemented.
 func (vm *VM) getOperandAsBytes(operand string, size int8) []byte {
@@ -145,19 +150,29 @@ func (vm *VM) setRegister(reg string, value []byte) {
 func (vm *VM) setZeroFlag(flag bool) {
 	fmt.Printf("(ZF %t) ", flag)
 	if flag {
-		vm.storage[17] = vm.storage[17] | 0x80
+		vm.storage[19] = vm.storage[19] | 0x80
 		return
 	}
-	vm.storage[17] = vm.storage[17] & 0x7F
+	vm.storage[19] = vm.storage[19] & 0x7F
 }
 
 func (vm *VM) setSignFlag(flag bool) {
 	fmt.Printf("(SF %t) ", flag)
 	if flag {
-		vm.storage[16] = vm.storage[16] | 0x01
+		vm.storage[18] = vm.storage[18] | 0x01
 		return
 	}
-	vm.storage[16] = vm.storage[16] & 0xFE
+	vm.storage[18] = vm.storage[18] & 0xFE
+}
+
+func (vm *VM) incrementIP(size int) {
+	current := binary.LittleEndian.Uint16(vm.storage[16:18])
+	current += uint16(size)
+
+	currentByte := make([]byte, 2)
+	binary.LittleEndian.PutUint16(currentByte, current)
+
+	copy(vm.storage[16:], currentByte)
 }
 
 // I LOVE ASCII TABLES
@@ -178,6 +193,8 @@ func (vm *VM) PrintRegistersBinary() {
 	fmt.Printf("│ di │ %08b   %08b │\n", r[14], r[15])
 	fmt.Printf("├────┼─────────────────────┤\n")
 	fmt.Printf("│ fl │ %08b   %08b │\n", r[16], r[17])
+	fmt.Printf("├────┼─────────────────────┤\n")
+	fmt.Printf("│ fl │ %08b   %08b │\n", r[18], r[19])
 	fmt.Printf("└────┴─────────────────────┘\n")
 }
 
@@ -198,7 +215,9 @@ func (vm *VM) PrintRegistersHex() {
 	fmt.Printf("│ si │ 0x%02x   0x%02x │\n", r[12], r[13])
 	fmt.Printf("│ di │ 0x%02x   0x%02x │\n", r[14], r[15])
 	fmt.Printf("├────┼─────────────┤\n")
-	fmt.Printf("│ fl │ 0x%02x   0x%02x │\n", r[16], r[17])
+	fmt.Printf("│ ip │ 0x%02x   0x%02x │\n", r[16], r[17])
+	fmt.Printf("├────┼─────────────┤\n")
+	fmt.Printf("│ fl │ 0x%02x   0x%02x │\n", r[18], r[19])
 	fmt.Printf("└────┴─────────────┘\n")
 }
 

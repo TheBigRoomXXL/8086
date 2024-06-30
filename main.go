@@ -4,10 +4,6 @@ import (
 	"os"
 )
 
-type VM struct {
-	storage [18]byte // 9 * 16bits register
-}
-
 func main() {
 	// Open file with assembly insructions to decode
 	filePath := os.Args[1]
