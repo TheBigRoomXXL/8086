@@ -7,8 +7,9 @@ import (
 	"strconv"
 )
 
-func Execute(bus io.ReadSeeker) {
-	store := Storage{bus, [20]byte{}}
+func Execute(bus io.ReadSeeker, decodeOnly bool, printHex bool) {
+	store := Storage{bus, [20]byte{}, [64 * 1024]byte{}}
+	fmt.Print("────────────────────────── EXECUTION ───────────────────────────\n")
 	for {
 		i, err := Decode(store.bus)
 		if err != nil {
@@ -17,7 +18,13 @@ func Execute(bus io.ReadSeeker) {
 			}
 			panic(err)
 		}
-		fmt.Printf("%s: ", &i)
+
+		if decodeOnly {
+			fmt.Printf("%s\n", &i)
+			continue
+		}
+
+		fmt.Printf("%- 12s ", &i)
 		store.incrementIP(uint16(i.size))
 
 		execute := executors[i.operator]
@@ -26,12 +33,22 @@ func Execute(bus io.ReadSeeker) {
 				fmt.Sprintf("Operation %s in not implemented", i.operator),
 			)
 		}
+
 		execute(&store, i)
 
 		fmt.Print("\n")
 	}
 
-	store.PrintRegistersHex()
+	if decodeOnly {
+		return
+	}
+
+	fmt.Print("\n───────────────────────── FINAL STATE ──────────────────────────\n")
+	if printHex {
+		store.PrintRegistersHex()
+	} else {
+		store.PrintRegistersBinary()
+	}
 
 }
 
@@ -93,7 +110,7 @@ func cmp(store *Storage, i Instruction) {
 	valueA := store.getOperandAsInt(i.operandLeft, size)
 	valueB := store.getOperandAsInt(i.operandRight, size)
 
-	fmt.Print("writing nothing to storage ")
+	fmt.Print("writing nothing to internal ")
 
 	valueInt := valueA - valueB
 	var valueBytes []byte
@@ -159,8 +176,9 @@ func jns(store *Storage, i Instruction) {
 // =================
 
 type Storage struct {
-	bus     io.ReadSeeker // Instruction bus
-	storage [20]byte      // 8 * 16bits register + IP register + Flags register
+	bus      io.ReadSeeker   // Instruction bus
+	internal [20]byte        // 8 * 16bits register + IP register + Flags register
+	memory   [64 * 1024]byte // We only have 64Kb of memory because we don't implement segment registers
 }
 
 // Return the imediate value or lookup the register.
@@ -174,7 +192,7 @@ func (store *Storage) getOperandAsBytes(operand string, size int8) []byte {
 	} else {
 		// Then operandRight is a register / memory
 		offset := registersOffsets[operand]
-		value = store.storage[offset : offset+size]
+		value = store.internal[offset : offset+size]
 	}
 	return value
 }
@@ -191,10 +209,10 @@ func (store *Storage) getOperandAsInt(operand string, size int8) uint16 {
 		// Then operandRight is a register / memory
 		offset := registersOffsets[operand]
 		if size == 1 {
-			value = uint16((store.storage[offset]))
+			value = uint16((store.internal[offset]))
 		} else {
 			value = binary.LittleEndian.Uint16(
-				store.storage[offset : offset+size],
+				store.internal[offset : offset+size],
 			)
 		}
 	}
@@ -203,53 +221,53 @@ func (store *Storage) getOperandAsInt(operand string, size int8) uint16 {
 
 func (store *Storage) setRegister(reg string, value []byte) {
 	offset := registersOffsets[reg]
-	fmt.Printf("(%s 0x%02x->", reg, store.storage[offset:offset+2])
-	copy(store.storage[offset:], value)
-	fmt.Printf("(0x%02x) ", store.storage[offset:offset+2])
+	fmt.Printf("(%s 0x%02x->", reg, store.internal[offset:offset+2])
+	copy(store.internal[offset:], value)
+	fmt.Printf("(0x%02x) ", store.internal[offset:offset+2])
 
 }
 
 func (store *Storage) setZeroFlag(flag bool) {
 	fmt.Printf("(ZF %t) ", flag)
 	if flag {
-		store.storage[19] = store.storage[19] | 0x80
+		store.internal[19] = store.internal[19] | 0x80
 		return
 	}
-	store.storage[19] = store.storage[19] & 0x7F
+	store.internal[19] = store.internal[19] & 0x7F
 }
 
 func (store *Storage) getZeroFlag() bool {
-	return store.storage[19]>>7 == 1
+	return store.internal[19]>>7 == 1
 }
 
 func (store *Storage) setSignFlag(flag bool) {
 	fmt.Printf("(SF %t) ", flag)
 	if flag {
-		store.storage[18] = store.storage[18] | 0x01
+		store.internal[18] = store.internal[18] | 0x01
 		return
 	}
-	store.storage[18] = store.storage[18] & 0xFE
+	store.internal[18] = store.internal[18] & 0xFE
 }
 
 func (store *Storage) getSignFlag() bool {
-	return store.storage[18]&0b1 == 1
+	return store.internal[18]&0b1 == 1
 }
 
 func (store *Storage) incrementIP(size uint16) {
-	current := binary.LittleEndian.Uint16(store.storage[16:18])
+	current := binary.LittleEndian.Uint16(store.internal[16:18])
 	current += uint16(size)
 
 	currentByte := make([]byte, 2)
 	binary.LittleEndian.PutUint16(currentByte, current)
 
-	copy(store.storage[16:], currentByte)
+	copy(store.internal[16:], currentByte)
 	fmt.Printf("(IP 0x%04x) ", currentByte)
 
 }
 
 // I LOVE ASCII TABLES
 func (store *Storage) PrintRegistersBinary() {
-	r := store.storage
+	r := store.internal
 
 	fmt.Printf("     ┌─────────────────────┐\n")
 	fmt.Printf("     │       STORAGE       │\n")
@@ -264,7 +282,7 @@ func (store *Storage) PrintRegistersBinary() {
 	fmt.Printf("│ si │ %08b   %08b │\n", r[12], r[13])
 	fmt.Printf("│ di │ %08b   %08b │\n", r[14], r[15])
 	fmt.Printf("├────┼─────────────────────┤\n")
-	fmt.Printf("│ fl │ %08b   %08b │\n", r[16], r[17])
+	fmt.Printf("│ ip │ %08b   %08b │\n", r[16], r[17])
 	fmt.Printf("├────┼─────────────────────┤\n")
 	fmt.Printf("│ fl │ %08b   %08b │\n", r[18], r[19])
 	fmt.Printf("└────┴─────────────────────┘\n")
@@ -272,7 +290,7 @@ func (store *Storage) PrintRegistersBinary() {
 
 // MOOOAAARE ASCII TABLES
 func (store *Storage) PrintRegistersHex() {
-	r := store.storage
+	r := store.internal
 
 	fmt.Printf("     ┌─────────────┐\n")
 	fmt.Printf("     │  REGISTERS  │\n")
