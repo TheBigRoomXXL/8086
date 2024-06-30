@@ -133,7 +133,7 @@ func jmp(store *Storage, i Instruction) {
 		)
 	}
 
-	fmt.Printf("Jumping to %d ", offset)
+	fmt.Printf("[jump %d] ", offset)
 
 	store.incrementIP(uint16(offset))
 	_, err = store.bus.Seek(offset, 1)
@@ -221,14 +221,14 @@ func (store *Storage) getOperandAsInt(operand string, size int8) uint16 {
 
 func (store *Storage) setRegister(reg string, value []byte) {
 	offset := registersOffsets[reg]
-	fmt.Printf("(%s 0x%02x->", reg, store.internal[offset:offset+2])
+	fmt.Printf("[%s 0x%02x->", reg, store.internal[offset:offset+2])
 	copy(store.internal[offset:], value)
-	fmt.Printf("(0x%02x) ", store.internal[offset:offset+2])
+	fmt.Printf("[0x%02x] ", store.internal[offset:offset+2])
 
 }
 
 func (store *Storage) setZeroFlag(flag bool) {
-	fmt.Printf("(ZF %t) ", flag)
+	fmt.Printf("[ZF %t] ", flag)
 	if flag {
 		store.internal[19] = store.internal[19] | 0x80
 		return
@@ -241,7 +241,7 @@ func (store *Storage) getZeroFlag() bool {
 }
 
 func (store *Storage) setSignFlag(flag bool) {
-	fmt.Printf("(SF %t) ", flag)
+	fmt.Printf("[SF %t] ", flag)
 	if flag {
 		store.internal[18] = store.internal[18] | 0x01
 		return
@@ -261,7 +261,7 @@ func (store *Storage) incrementIP(size uint16) {
 	binary.LittleEndian.PutUint16(currentByte, current)
 
 	copy(store.internal[16:], currentByte)
-	fmt.Printf("(IP 0x%04x) ", currentByte)
+	fmt.Printf("[IP 0x%04x] ", currentByte)
 
 }
 
