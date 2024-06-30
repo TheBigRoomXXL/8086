@@ -3,12 +3,18 @@ mov bx, 1000: (IP 0x0600) (bx 0x0000->(0xe803)
 add bx, 10: (IP 0x0900) (bx 0xe803->(0xf203) (ZF false) (SF false) 
 sub cx, 1: (IP 0x0c00) (cx 0x0300->(0x0200) (ZF false) (SF false) 
 jne -8: (IP 0x0e00) Jumping to -8 (IP 0x0600) 
+add bx, 10: (IP 0x0900) (bx 0xf203->(0xfc03) (ZF false) (SF false) 
+sub cx, 1: (IP 0x0c00) (cx 0x0200->(0x0100) (ZF false) (SF false) 
+jne -8: (IP 0x0e00) Jumping to -8 (IP 0x0600) 
+add bx, 10: (IP 0x0900) (bx 0xfc03->(0x0604) (ZF false) (SF false) 
+sub cx, 1: (IP 0x0c00) (cx 0x0100->(0x0000) (ZF true) (SF false) 
+jne -8: (IP 0x0e00) 
      ┌─────────────┐
      │  REGISTERS  │
 ┌────┼──────┬──────│
 │ ax │ 0x00 │ 0x00 │
-│ bx │ 0xf2 │ 0x03 │
-│ cx │ 0x02 │ 0x00 │
+│ bx │ 0x06 │ 0x04 │
+│ cx │ 0x00 │ 0x00 │
 │ dx │ 0x00 │ 0x00 │
 ├────┼──────┴──────┤
 │ sp │ 0x00   0x00 │
@@ -16,7 +22,7 @@ jne -8: (IP 0x0e00) Jumping to -8 (IP 0x0600)
 │ si │ 0x00   0x00 │
 │ di │ 0x00   0x00 │
 ├────┼─────────────┤
-│ ip │ 0x06   0x00 │
+│ ip │ 0x0e   0x00 │
 ├────┼─────────────┤
-│ fl │ 0x00   0x00 │
+│ fl │ 0x00   0x80 │
 └────┴─────────────┘
