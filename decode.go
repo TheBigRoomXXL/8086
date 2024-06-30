@@ -100,10 +100,6 @@ func decodeRegMemToFromReg(buffer []byte, bus *ReaderCounter) Instruction {
 	d := buffer[0] >> 1 & 1 // direction to/from register
 	w := buffer[0] & 1      // word/byte operator
 
-	fmt.Println("decodeRegMemToFromReg")
-	fmt.Printf("buffer %08b\n", buffer)
-	fmt.Println("w", w)
-
 	// Parse second byte
 	checkRead(bus.Read(buffer))
 

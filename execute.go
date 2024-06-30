@@ -23,7 +23,7 @@ func Execute(bus io.ReadSeeker) {
 		execute := executors[i.operator]
 		if execute == nil {
 			panic(
-				fmt.Sprintf("Operation %s in not implemented", i.operandLeft),
+				fmt.Sprintf("Operation %s in not implemented", i.operator),
 			)
 		}
 		execute(&store, i)
@@ -47,8 +47,6 @@ func mov(store *Storage, i Instruction) {
 
 func add(store *Storage, i Instruction) {
 	size := int8(1 + i.w)
-	fmt.Println(i)
-	fmt.Println(i.w)
 
 	valueA := store.getOperandAsInt(i.operandLeft, size)
 	valueB := store.getOperandAsInt(i.operandRight, size)
@@ -121,7 +119,11 @@ func jmp(store *Storage, i Instruction) {
 	fmt.Printf("Jumping to %d ", offset)
 
 	store.incrementIP(uint16(offset))
-	store.bus.Seek(int64(store.getIP()), 1)
+	_, err = store.bus.Seek(offset, 1)
+	if err != nil {
+		panic(err)
+	}
+
 }
 
 // Jump if equal
@@ -243,10 +245,6 @@ func (store *Storage) incrementIP(size uint16) {
 	copy(store.storage[16:], currentByte)
 	fmt.Printf("(IP 0x%04x) ", currentByte)
 
-}
-
-func (store *Storage) getIP() uint16 {
-	return binary.LittleEndian.Uint16(store.storage[16:18])
 }
 
 // I LOVE ASCII TABLES
