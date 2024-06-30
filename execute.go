@@ -47,13 +47,20 @@ func mov(store *Storage, i Instruction) {
 
 func add(store *Storage, i Instruction) {
 	size := int8(1 + i.w)
+	fmt.Println(i)
+	fmt.Println(i.w)
 
 	valueA := store.getOperandAsInt(i.operandLeft, size)
 	valueB := store.getOperandAsInt(i.operandRight, size)
 
 	valueInt := valueA + valueB
-	valueBytes := make([]byte, size)
-	binary.LittleEndian.PutUint16(valueBytes, valueInt)
+	var valueBytes []byte
+	if size == 1 {
+		valueBytes = []byte{byte(valueInt)}
+	} else {
+		valueBytes = make([]byte, size)
+		binary.LittleEndian.PutUint16(valueBytes, valueInt)
+	}
 
 	store.setRegister(i.operandLeft, valueBytes)
 
@@ -68,8 +75,13 @@ func sub(store *Storage, i Instruction) {
 	valueB := store.getOperandAsInt(i.operandRight, size)
 
 	valueInt := valueA - valueB
-	valueBytes := make([]byte, size)
-	binary.LittleEndian.PutUint16(valueBytes, valueInt)
+	var valueBytes []byte
+	if size == 1 {
+		valueBytes = []byte{byte(valueInt)}
+	} else {
+		valueBytes = make([]byte, size)
+		binary.LittleEndian.PutUint16(valueBytes, valueInt)
+	}
 
 	store.setRegister(i.operandLeft, valueBytes)
 
@@ -86,8 +98,13 @@ func cmp(store *Storage, i Instruction) {
 	fmt.Print("writing nothing to storage ")
 
 	valueInt := valueA - valueB
-	valueBytes := make([]byte, size)
-	binary.LittleEndian.PutUint16(valueBytes, valueInt)
+	var valueBytes []byte
+	if size == 1 {
+		valueBytes = []byte{byte(valueInt)}
+	} else {
+		valueBytes = make([]byte, size)
+		binary.LittleEndian.PutUint16(valueBytes, valueInt)
+	}
 
 	store.setZeroFlag(valueInt == 0)
 	store.setSignFlag(valueBytes[size-1]>>7 == 1)
@@ -171,9 +188,13 @@ func (store *Storage) getOperandAsInt(operand string, size int8) uint16 {
 	} else {
 		// Then operandRight is a register / memory
 		offset := registersOffsets[operand]
-		value = binary.LittleEndian.Uint16(
-			store.storage[offset : offset+size],
-		)
+		if size == 1 {
+			value = uint16((store.storage[offset]))
+		} else {
+			value = binary.LittleEndian.Uint16(
+				store.storage[offset : offset+size],
+			)
+		}
 	}
 	return value
 }
