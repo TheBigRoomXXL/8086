@@ -374,7 +374,7 @@ var operators = map[byte]string{
 	0b001011: "sub",
 	0b001110: "cmp",
 	0b001111: "cmp",
-	0b011101: "jnz",
+	0b011101: "jne",
 }
 
 // The key is the last 5 bits of the first byte
@@ -387,7 +387,7 @@ var operatorsJumps = map[byte]string{
 	0b11010: "jp",
 	0b10000: "jo",
 	0b11000: "js",
-	0b10101: "jnz",
+	0b10101: "jne",
 	0b11101: "jge",
 	0b11111: "jg",
 	0b10011: "jnb",

@@ -8,9 +8,9 @@ import (
 )
 
 func Execute(bus io.ReadSeeker) {
-	vm := VM{}
+	vm := VM{bus, [20]byte{}}
 	for {
-		i, err := Decode(bus)
+		i, err := Decode(vm.bus)
 		if err != nil {
 			if err == io.EOF {
 				break
@@ -18,20 +18,16 @@ func Execute(bus io.ReadSeeker) {
 			panic(err)
 		}
 		fmt.Printf("%s: ", &i)
-		vm.incrementIP(i.size)
+		vm.incrementIP(uint16(i.size))
 
-		switch i.operator {
-		case "mov":
-			vm.mov(i)
-		case "add":
-			vm.add(i)
-		case "sub":
-			vm.sub(i)
-		case "cmp":
-			vm.cmp(i)
-		default:
-			panic(fmt.Sprintf("Operator %s not implemented", i.operator))
+		execute := executors[i.operator]
+		if execute == nil {
+			panic(
+				fmt.Sprintf("Operation %s in not implemented", i.operandLeft),
+			)
 		}
+		execute(&vm, i)
+
 		fmt.Print("\n")
 	}
 
@@ -43,13 +39,13 @@ func Execute(bus io.ReadSeeker) {
 // ===== INSTRUCTIONS =====
 // ========================
 
-func (vm *VM) mov(i Instruction) {
+func mov(vm *VM, i Instruction) {
 	size := int8(1 + i.w)
 	value := vm.getOperandAsBytes(i.operandRight, size)
 	vm.setRegister(i.operandLeft, value)
 }
 
-func (vm *VM) add(i Instruction) {
+func add(vm *VM, i Instruction) {
 	size := int8(1 + i.w)
 
 	valueA := vm.getOperandAsInt(i.operandLeft, size)
@@ -65,7 +61,7 @@ func (vm *VM) add(i Instruction) {
 	vm.setSignFlag(valueBytes[size-1]>>7 == 1)
 }
 
-func (vm *VM) sub(i Instruction) {
+func sub(vm *VM, i Instruction) {
 	size := int8(1 + i.w)
 
 	valueA := vm.getOperandAsInt(i.operandLeft, size)
@@ -81,7 +77,7 @@ func (vm *VM) sub(i Instruction) {
 	vm.setSignFlag(valueBytes[size-1]>>7 == 1)
 }
 
-func (vm *VM) cmp(i Instruction) {
+func cmp(vm *VM, i Instruction) {
 	size := int8(1 + i.w)
 
 	valueA := vm.getOperandAsInt(i.operandLeft, size)
@@ -97,12 +93,55 @@ func (vm *VM) cmp(i Instruction) {
 	vm.setSignFlag(valueBytes[size-1]>>7 == 1)
 }
 
+func jmp(vm *VM, i Instruction) {
+	offset, err := strconv.ParseInt(i.operandLeft, 10, 16)
+	if err != nil {
+		panic(
+			fmt.Sprintf("JMP only support immediate value, %s", err),
+		)
+	}
+
+	fmt.Printf("Jumping to %d ", offset)
+
+	vm.incrementIP(uint16(offset))
+	vm.bus.Seek(int64(vm.getIP()), 1)
+}
+
+// Jump if equal
+func je(vm *VM, i Instruction) {
+	if vm.getZeroFlag() {
+		jmp(vm, i)
+	}
+}
+
+// Jump if not equal
+func jne(vm *VM, i Instruction) {
+	if !vm.getZeroFlag() {
+		jmp(vm, i)
+	}
+}
+
+// Jump if signed
+func js(vm *VM, i Instruction) {
+	if vm.getSignFlag() {
+		jmp(vm, i)
+	}
+}
+
+// Jump if not signed
+func jns(vm *VM, i Instruction) {
+	if !vm.getSignFlag() {
+		jmp(vm, i)
+	}
+}
+
 // =================
 // ===== UTILS =====
 // =================
 
 type VM struct {
-	storage [20]byte // 9 * 16bits register
+	bus     io.ReadSeeker // Instruction bus
+	storage [20]byte      // 8 * 16bits register + IP register + Flags register
 }
 
 // Return the imediate value or lookup the register.
@@ -156,6 +195,10 @@ func (vm *VM) setZeroFlag(flag bool) {
 	vm.storage[19] = vm.storage[19] & 0x7F
 }
 
+func (vm *VM) getZeroFlag() bool {
+	return vm.storage[19]>>7 == 1
+}
+
 func (vm *VM) setSignFlag(flag bool) {
 	fmt.Printf("(SF %t) ", flag)
 	if flag {
@@ -165,7 +208,11 @@ func (vm *VM) setSignFlag(flag bool) {
 	vm.storage[18] = vm.storage[18] & 0xFE
 }
 
-func (vm *VM) incrementIP(size int) {
+func (vm *VM) getSignFlag() bool {
+	return vm.storage[18]&0b1 == 1
+}
+
+func (vm *VM) incrementIP(size uint16) {
 	current := binary.LittleEndian.Uint16(vm.storage[16:18])
 	current += uint16(size)
 
@@ -173,6 +220,12 @@ func (vm *VM) incrementIP(size int) {
 	binary.LittleEndian.PutUint16(currentByte, current)
 
 	copy(vm.storage[16:], currentByte)
+	fmt.Printf("(IP 0x%04x) ", currentByte)
+
+}
+
+func (vm *VM) getIP() uint16 {
+	return binary.LittleEndian.Uint16(vm.storage[16:18])
 }
 
 // I LOVE ASCII TABLES
@@ -244,4 +297,16 @@ var registersOffsets = map[string]int8{
 	"si": 12,
 	"di": 14,
 	"fl": 14,
+}
+
+var executors = map[string]func(*VM, Instruction){
+	"mov": mov,
+	"add": add,
+	"sub": sub,
+	"cmp": cmp,
+	"jmp": jmp,
+	"je":  je,
+	"jne": jne,
+	"js":  js,
+	"jns": jns,
 }
