@@ -181,12 +181,6 @@ func decodeImediateToRegister(buffer []byte, bus *ReaderCounter) Instruction {
 
 func decodeImediateToRegMem(buffer []byte, bus *ReaderCounter) Instruction {
 	// Parse first byte
-	opcode := buffer[0] >> 2
-	operator, ok := operators[opcode]
-	if !ok {
-		operator = ""
-	}
-
 	s := buffer[0] >> 1 & 1
 	w := buffer[0] & 1
 
@@ -197,10 +191,8 @@ func decodeImediateToRegMem(buffer []byte, bus *ReaderCounter) Instruction {
 	rm := buffer[0] & 7   // Register operand/extension to use in EA calculation
 
 	// Result
-	if operator == "" {
-		opcodeHint := buffer[0] >> 3 & 0b111
-		operator = operatorsArithmetic[opcodeHint]
-	}
+	opcodeHint := buffer[0] >> 3 & 0b111
+	operator := operatorsArithmetic[opcodeHint]
 
 	operand1 := ""
 	if mod == 0b11 {
@@ -222,21 +214,67 @@ func decodeImediateToRegMem(buffer []byte, bus *ReaderCounter) Instruction {
 	}
 
 	operand2 := ""
-
 	if s == 0 && w == 0 {
 		operand2 = fmt.Sprintf("%d", uint8(getData8(bus)))
 	} else if s == 1 && w == 0 {
-		operand2 = fmt.Sprintf("%d", getData8(bus))
+		operand2 = fmt.Sprintf("%d", uint8(getData8(bus)))
 	} else if s == 0 && w == 1 {
 		operand2 = fmt.Sprintf("%d", uint16(getData16(bus)))
 	} else if s == 1 && w == 1 {
-		if operator == "mov" {
-			operand2 = fmt.Sprintf("%d", getData16(bus))
-		} else {
-			operand2 = fmt.Sprintf("%d", getData8(bus))
-		}
+		operand2 = fmt.Sprintf("%d", getData8(bus))
 	} else {
 		panic("should not happen")
+	}
+
+	return Instruction{
+		operator,
+		operand1,
+		operand2,
+		w,
+		bus.GetCount(),
+	}
+}
+
+func decodeMovImediateToRegMem(buffer []byte, bus *ReaderCounter) Instruction {
+	// Parse first byte
+	opcode := buffer[0] >> 2
+	operator, ok := operators[opcode]
+	if !ok {
+		operator = ""
+	}
+	w := buffer[0] & 1
+
+	// Parse second byte
+	checkRead(bus.Read(buffer))
+
+	mod := buffer[0] >> 6 // Register / memory mode
+	rm := buffer[0] & 7   // Register operand/extension to use in EA calculation
+
+	// Result
+	operand1 := ""
+	if mod == 0b11 {
+		regkey := rm<<1 | w
+		op, ok := registers[regkey]
+		if !ok {
+			panic(fmt.Sprintf("register for %06b not found", regkey))
+		}
+		operand1 = op
+
+	} else {
+		operand1 = getMemoryCalculation(mod, rm, bus)
+		// Add the displacement information about the following data
+		if w == 0 {
+			operand1 = "byte " + operand1
+		} else {
+			operand1 = "word " + operand1
+		}
+	}
+
+	operand2 := ""
+	if w == 0 {
+		operand2 = fmt.Sprintf("%d", uint8(getData8(bus)))
+	} else {
+		operand2 = fmt.Sprintf("%d", uint16(getData16(bus)))
 	}
 
 	return Instruction{
@@ -373,7 +411,7 @@ var decoders = map[byte]func([]byte, *ReaderCounter) Instruction{
 	0b101101: decodeImediateToRegister,    // MOV
 	0b101110: decodeImediateToRegister,    // MOV
 	0b101111: decodeImediateToRegister,    // MOV
-	0b110001: decodeImediateToRegMem,      // MOV
+	0b110001: decodeMovImediateToRegMem,   // MOV
 	0b100000: decodeImediateToRegMem,      // ADD SUB CMP
 	0b000000: decodeRegMemToFromReg,       // ADD
 	0b000001: decodeImediateToAccumulator, // ADD
