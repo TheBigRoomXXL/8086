@@ -239,7 +239,7 @@ func (store *Storage) effectiveAdressCalculation(EACalc string, size int8) uint1
 	// Normalize EA
 	EACalc = strings.ReplaceAll(EACalc, "[", "")
 	EACalc = strings.ReplaceAll(EACalc, "]", "")
-	EACalc = strings.ReplaceAll(EACalc, "bytes", "")
+	EACalc = strings.ReplaceAll(EACalc, "byte", "")
 	EACalc = strings.ReplaceAll(EACalc, "word", "")
 	EACalc = strings.ReplaceAll(EACalc, " ", "")
 
