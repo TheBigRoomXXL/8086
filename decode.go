@@ -230,7 +230,7 @@ func decodeImediateToRegMem(buffer []byte, bus *ReaderCounter) Instruction {
 	} else if s == 0 && w == 1 {
 		operand2 = fmt.Sprintf("%d", uint16(getData16(bus)))
 	} else if s == 1 && w == 1 {
-		if operator == "cmp" || operator == "mov" {
+		if operator == "mov" {
 			operand2 = fmt.Sprintf("%d", getData16(bus))
 		} else {
 			operand2 = fmt.Sprintf("%d", getData8(bus))
