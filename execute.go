@@ -121,8 +121,6 @@ func cmp(store *Storage, i Instruction) {
 	valueA := store.readAsInt(i.operandLeft, size)
 	valueB := store.readAsInt(i.operandRight, size)
 
-	fmt.Print("writing nothing to internal ")
-
 	valueInt := valueA - valueB
 	var valueBytes []byte
 	if size == 1 {
@@ -243,6 +241,7 @@ func (store *Storage) writeToRegister(offset int8, reg string, value []byte) {
 
 func (store *Storage) writeToMemory(location string, value []byte) {
 	// Get Adress
+	fmt.Println(value)
 	address := store.effectiveAdressCalculation(location, int8(len(value)))
 
 	// Write
@@ -263,7 +262,8 @@ func (store *Storage) effectiveAdressCalculation(EACalc string, size int8) uint1
 	address := uint16(0)
 	locations := strings.Split(EACalc, "+")
 	for _, loc := range locations {
-		address += store.readAsInt(loc, size)
+		address += store.readAsInt(loc, 2)
+		fmt.Println(address, 2)
 	}
 	return address
 }
