@@ -31,8 +31,8 @@ add [bp + 0], bx
 add [bx + 2], cx
 add [bp + si + 4], bh
 add [bp + di + 6], di
-;add byte [bx], 34
-;add word [bp + si + 1000], 29
+add byte [bx], 34
+add word [bp + si + 1000], 29
 add ax, [bp]
 add al, [bx + si]
 add ax, bx
@@ -56,8 +56,8 @@ sub [bp + 0], bx
 sub [bx + 2], cx
 sub [bp + si + 4], bh
 sub [bp + di + 6], di
-;sub byte [bx], 34
-;sub word [bx + di], 29
+sub byte [bx], 34
+sub word [bx + di], 29
 sub ax, [bp]
 sub al, [bx + si]
 sub ax, bx
@@ -81,8 +81,8 @@ cmp [bp + 0], bx
 cmp [bx + 2], cx
 cmp [bp + si + 4], bh
 cmp [bp + di + 6], di
-;cmp byte [bx], 34
-;cmp word [4834], 29
+cmp byte [bx], 34
+cmp word [4834], 29
 cmp ax, [bp]
 cmp al, [bx + si]
 cmp ax, bx

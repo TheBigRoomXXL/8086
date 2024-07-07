@@ -29,7 +29,7 @@ func main() {
 
 	file, err := os.Open(filePath)
 	if err != nil {
-		panic("fail to open file")
+		panic(err)
 	}
 	defer file.Close()
 

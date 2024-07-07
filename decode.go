@@ -178,8 +178,14 @@ func decodeImediateToRegister(buffer []byte, bus *ReaderCounter) Instruction {
 	}
 }
 
-func decodeImediateToregisterMemory(buffer []byte, bus *ReaderCounter) Instruction {
+func decodeImediateToRegMem(buffer []byte, bus *ReaderCounter) Instruction {
 	// Parse first byte
+	opcode := buffer[0] >> 2
+	operator, ok := operators[opcode]
+	if !ok {
+		operator = ""
+	}
+
 	s := buffer[0] >> 1 & 1
 	w := buffer[0] & 1
 
@@ -190,8 +196,10 @@ func decodeImediateToregisterMemory(buffer []byte, bus *ReaderCounter) Instructi
 	rm := buffer[0] & 7   // Register operand/extension to use in EA calculation
 
 	// Result
-	opcodeHint := buffer[0] >> 3 & 0b111
-	operator := operatorsArithmetic[opcodeHint]
+	if operator == "" {
+		opcodeHint := buffer[0] >> 3 & 0b111
+		operator = operatorsArithmetic[opcodeHint]
+	}
 
 	operand1 := ""
 	if mod == 0b11 {
@@ -204,6 +212,12 @@ func decodeImediateToregisterMemory(buffer []byte, bus *ReaderCounter) Instructi
 
 	} else {
 		operand1 = getMemoryCalculation(mod, rm, bus)
+		// Add the displacement information about the following data
+		if w == 0 {
+			operand1 = "byte " + operand1
+		} else {
+			operand1 = "word " + operand1
+		}
 	}
 
 	operand2 := ""
@@ -307,6 +321,10 @@ func getData16(bus *ReaderCounter) int16 {
 func getMemoryCalculation(mod byte, rm byte, bus *ReaderCounter) string {
 	switch mod {
 	case 0b00: // Memory Mode, no displacement
+		if rm == 0b110 { // execpt when rm110, then 16 bit displacement follow
+			return fmt.Sprintf("[%d]", getData16(bus))
+		}
+
 		addrKey := mod<<3 | rm
 		return addressCalculations[addrKey]
 	case 0b01: // Memory Mode, 8-bit displacement
@@ -317,6 +335,7 @@ func getMemoryCalculation(mod byte, rm byte, bus *ReaderCounter) string {
 		return strings.Replace(addr, "D8", d8, 1)
 
 	case 0b10: //Memory Mode, 16-bit displacement
+
 		addrKey := mod<<3 | rm
 		addr := addressCalculations[addrKey]
 
@@ -343,23 +362,24 @@ func getMemoryCalculation(mod byte, rm byte, bus *ReaderCounter) string {
 
 // Reference table 4-12 8086 Instruction Encoding
 var decoders = map[byte]func([]byte, *ReaderCounter) Instruction{
-	0b100010: decodeRegMemToFromReg,          // MOV
-	0b101100: decodeImediateToRegister,       // MOV
-	0b101101: decodeImediateToRegister,       // MOV
-	0b101110: decodeImediateToRegister,       // MOV
-	0b101111: decodeImediateToRegister,       // MOV
-	0b100000: decodeImediateToregisterMemory, // ADD SUB CMP
-	0b000000: decodeRegMemToFromReg,          // ADD
-	0b000001: decodeImediateToAccumulator,    // ADD
-	0b001010: decodeRegMemToFromReg,          // SUB
-	0b001011: decodeImediateToAccumulator,    // SUB
-	0b001110: decodeRegMemToFromReg,          // CMP
-	0b001111: decodeImediateToAccumulator,    // CMP
-	0b011100: decodeCondJumpAndLoop,          // CONDITIONAL JUMPS
-	0b011101: decodeCondJumpAndLoop,          // CONDITIONAL JUMPS
-	0b011110: decodeCondJumpAndLoop,          // CONDITIONAL JUMPS
-	0b011111: decodeCondJumpAndLoop,          // CONDITIONAL JUMPS
-	0b111000: decodeCondJumpAndLoop,          // LOOP
+	0b100010: decodeRegMemToFromReg,       // MOV
+	0b101100: decodeImediateToRegister,    // MOV
+	0b101101: decodeImediateToRegister,    // MOV
+	0b101110: decodeImediateToRegister,    // MOV
+	0b101111: decodeImediateToRegister,    // MOV
+	0b110001: decodeImediateToRegMem,      // MOV
+	0b100000: decodeImediateToRegMem,      // ADD SUB CMP
+	0b000000: decodeRegMemToFromReg,       // ADD
+	0b000001: decodeImediateToAccumulator, // ADD
+	0b001010: decodeRegMemToFromReg,       // SUB
+	0b001011: decodeImediateToAccumulator, // SUB
+	0b001110: decodeRegMemToFromReg,       // CMP
+	0b001111: decodeImediateToAccumulator, // CMP
+	0b011100: decodeCondJumpAndLoop,       // CONDITIONAL JUMPS
+	0b011101: decodeCondJumpAndLoop,       // CONDITIONAL JUMPS
+	0b011110: decodeCondJumpAndLoop,       // CONDITIONAL JUMPS
+	0b011111: decodeCondJumpAndLoop,       // CONDITIONAL JUMPS
+	0b111000: decodeCondJumpAndLoop,       // LOOP
 }
 
 var operators = map[byte]string{
@@ -368,6 +388,7 @@ var operators = map[byte]string{
 	0b101101: "mov",
 	0b101110: "mov",
 	0b101111: "mov",
+	0b110001: "mov",
 	0b000000: "add",
 	0b000001: "add",
 	0b001010: "sub",
@@ -439,7 +460,7 @@ var addressCalculations = map[byte]string{
 	0b00100: "[si]",
 	0b00101: "[di]",
 	0b00110: "DIRECT ADDRESS",
-	0b00111: "[bx",
+	0b00111: "[bx]",
 	0b01000: "[bx + si + D8]",
 	0b01001: "[bx + di + D8]",
 	0b01010: "[bp + si + D8]",

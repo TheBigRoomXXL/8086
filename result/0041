@@ -1,3 +1,4 @@
+────────────────────────── EXECUTION ───────────────────────────
 add bx, [bx + si]
 add bx, [bp]
 add bx, [bp]
@@ -10,6 +11,8 @@ add [bp], bx
 add [bx + 2], cx
 add [bp + si + 4], bh
 add [bp + di + 6], di
+add byte [bx], 34
+add word [bp + si + 1000], 29
 add ax, [bp]
 add al, [bx + si]
 add ax, bx
@@ -20,7 +23,7 @@ add al, 9
 sub bx, [bx + si]
 sub bx, [bp]
 sub si, 2
-sub bp, 2
+sub dp, 2
 sub cx, 8
 sub bx, [bp]
 sub cx, [bx + 2]
@@ -32,6 +35,8 @@ sub [bp], bx
 sub [bx + 2], cx
 sub [bp + si + 4], bh
 sub [bp + di + 6], di
+sub byte [bx], 34
+sub word [bx + di], 29
 sub ax, [bp]
 sub al, [bx + si]
 sub ax, bx
@@ -42,7 +47,7 @@ sub al, 9
 cmp bx, [bx + si]
 cmp bx, [bp]
 cmp si, 2
-cmp bp, 2
+cmp dp, 2
 cmp cx, 8
 cmp bx, [bp]
 cmp cx, [bx + 2]
@@ -54,6 +59,8 @@ cmp [bp], bx
 cmp [bx + 2], cx
 cmp [bp + si + 4], bh
 cmp [bp + di + 6], di
+cmp byte [bx], 34
+cmp word [4834], 29
 cmp ax, [bp]
 cmp al, [bx + si]
 cmp ax, bx
@@ -61,10 +68,10 @@ cmp al, ah
 cmp ax, 1000
 cmp al, -30
 cmp al, 9
-jnz 2
-jnz -4
-jnz -6
-jnz -4
+jne 2
+jne -4
+jne -6
+jne -4
 je -2
 jl -4
 jle -6
@@ -73,7 +80,7 @@ jbe -10
 jp -12
 jo -14
 js -16
-jnz -18
+jne -18
 jge -20
 jg -22
 jnb -24
