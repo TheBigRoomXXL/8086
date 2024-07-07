@@ -22,6 +22,11 @@ func main() {
 		false,
 		"Print the final state of register in binary format",
 	)
+	dumpFlag := flag.Bool(
+		"dump",
+		false,
+		"Dump memory into a `memory.data` file at the end of the program",
+	)
 	flag.Parse()
 
 	// Open file with assembly insructions to decode
@@ -33,5 +38,5 @@ func main() {
 	}
 	defer file.Close()
 
-	Execute(file, *decodeFlag, !*binaryFlag)
+	Execute(file, *decodeFlag, !*binaryFlag, *dumpFlag)
 }

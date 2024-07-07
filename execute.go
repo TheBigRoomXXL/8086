@@ -4,13 +4,16 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"os"
 	"strconv"
 	"strings"
 )
 
-func Execute(bus io.ReadSeeker, decodeOnly bool, printHex bool) {
+func Execute(bus io.ReadSeeker, decodeOnly bool, printHex bool, dumpMemory bool) {
 	store := Storage{bus, [20]byte{}, [64 * 1024]byte{}}
-	fmt.Print("────────────────────────── EXECUTION ───────────────────────────\n")
+	if !decodeOnly {
+		fmt.Print("────────────────────────── EXECUTION ───────────────────────────\n")
+	}
 	for {
 		i, err := Decode(store.bus)
 		if err != nil {
@@ -49,6 +52,13 @@ func Execute(bus io.ReadSeeker, decodeOnly bool, printHex bool) {
 		store.PrintRegistersHex()
 	} else {
 		store.PrintRegistersBinary()
+	}
+
+	if dumpMemory {
+		err := os.WriteFile("memory.data", store.memory[:], 0644)
+		if err != nil {
+			panic(err)
+		}
 	}
 
 }
@@ -210,6 +220,9 @@ func (store *Storage) read(location string, size int8) []byte {
 // Same as read but converted to int with littleEndian format.
 func (store *Storage) readAsInt(location string, size int8) uint16 {
 	raw := store.read(location, size)
+	if size == 1 {
+		raw = append(raw, byte(0)) // Work because little endian
+	}
 	return binary.LittleEndian.Uint16(raw)
 }
 
