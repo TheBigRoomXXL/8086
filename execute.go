@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 )
 
 func Execute(bus io.ReadSeeker, decodeOnly bool, printHex bool) {
@@ -182,21 +183,25 @@ type Storage struct {
 }
 
 // Return the imediate value or lookup the register.
-// Memory acces not implemented.
 func (store *Storage) read(location string, size int8) []byte {
-	value := make([]byte, size)
 	tmp, err := strconv.ParseInt(location, 10, 16)
 	if err == nil {
 		// Then operandRight is an imediate
+		value := make([]byte, size)
 		binary.LittleEndian.PutUint16(value, uint16(tmp))
 		return value
 	}
 
 	// Then operandRight is a register or memory
-	offset := registersOffsets[location]
-	value = store.internal[offset : offset+size]
+	offset, isReg := registersOffsets[location]
+	if isReg {
+		// it's a register
+		return store.internal[offset : offset+size]
+	}
 
-	return value
+	// it's memory
+	address := store.effectiveAdressCalculation(location, size)
+	return store.memory[address : address+uint16(size)]
 }
 
 // Same as read but converted to int with littleEndian format.
@@ -210,14 +215,41 @@ func (store *Storage) write(location string, value []byte) {
 	if isReg {
 		store.writeToRegister(offset, location, value)
 	} else {
-		fmt.Print("something something memory")
+		store.writeToMemory(location, value)
 	}
 }
 
 func (store *Storage) writeToRegister(offset int8, reg string, value []byte) {
 	fmt.Printf("[%s 0x%02x->", reg, store.internal[offset:offset+2])
 	copy(store.internal[offset:], value)
-	fmt.Printf("[0x%02x] ", store.internal[offset:offset+2])
+	fmt.Printf("0x%02x] ", store.internal[offset:offset+2])
+}
+
+func (store *Storage) writeToMemory(location string, value []byte) {
+	// Get Adress
+	address := store.effectiveAdressCalculation(location, int8(len(value)))
+
+	// Write
+	fmt.Printf("[%d 0x%02x->", address, store.memory[address:address+2])
+	copy(store.memory[address:], value)
+	fmt.Printf("0x%02x] ", store.memory[address:address+2])
+}
+
+func (store *Storage) effectiveAdressCalculation(EACalc string, size int8) uint16 {
+	// Normalize EA
+	EACalc = strings.ReplaceAll(EACalc, "[", "")
+	EACalc = strings.ReplaceAll(EACalc, "]", "")
+	EACalc = strings.ReplaceAll(EACalc, "bytes", "")
+	EACalc = strings.ReplaceAll(EACalc, "word", "")
+	EACalc = strings.ReplaceAll(EACalc, " ", "")
+
+	// Do the calc
+	address := uint16(0)
+	locations := strings.Split(EACalc, "+")
+	for _, loc := range locations {
+		address += store.readAsInt(loc, size)
+	}
+	return address
 }
 
 func (store *Storage) setZeroFlag(flag bool) {
