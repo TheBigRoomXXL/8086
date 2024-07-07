@@ -16,7 +16,7 @@ type ReaderCounter struct {
 
 func (r *ReaderCounter) Read(p []byte) (int, error) {
 	n, err := r.reader.Read(p)
-	// fmt.Printf("%08b ", p) // Great for debugging
+	fmt.Printf("%08b ", p) // Great for debugging
 	r.count += n
 	return n, err
 }
@@ -222,6 +222,7 @@ func decodeImediateToRegMem(buffer []byte, bus *ReaderCounter) Instruction {
 	}
 
 	operand2 := ""
+
 	if s == 0 && w == 0 {
 		operand2 = fmt.Sprintf("%d", uint8(getData8(bus)))
 	} else if s == 1 && w == 0 {
@@ -229,7 +230,11 @@ func decodeImediateToRegMem(buffer []byte, bus *ReaderCounter) Instruction {
 	} else if s == 0 && w == 1 {
 		operand2 = fmt.Sprintf("%d", uint16(getData16(bus)))
 	} else if s == 1 && w == 1 {
-		operand2 = fmt.Sprintf("%d", getData16(bus))
+		if operator == "cmp" || operator == "mov" {
+			operand2 = fmt.Sprintf("%d", getData16(bus))
+		} else {
+			operand2 = fmt.Sprintf("%d", getData8(bus))
+		}
 	} else {
 		panic("should not happen")
 	}
