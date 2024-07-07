@@ -16,7 +16,7 @@ type ReaderCounter struct {
 
 func (r *ReaderCounter) Read(p []byte) (int, error) {
 	n, err := r.reader.Read(p)
-	fmt.Printf("%08b ", p) // Great for debugging
+	// fmt.Printf("%08b ", p) // Great for debugging
 	r.count += n
 	return n, err
 }

@@ -58,15 +58,15 @@ func Execute(bus io.ReadSeeker, decodeOnly bool, printHex bool) {
 
 func mov(store *Storage, i Instruction) {
 	size := int8(1 + i.w)
-	value := store.getOperandAsBytes(i.operandRight, size)
-	store.setRegister(i.operandLeft, value)
+	value := store.read(i.operandRight, size)
+	store.write(i.operandLeft, value)
 }
 
 func add(store *Storage, i Instruction) {
 	size := int8(1 + i.w)
 
-	valueA := store.getOperandAsInt(i.operandLeft, size)
-	valueB := store.getOperandAsInt(i.operandRight, size)
+	valueA := store.readAsInt(i.operandLeft, size)
+	valueB := store.readAsInt(i.operandRight, size)
 
 	valueInt := valueA + valueB
 	var valueBytes []byte
@@ -77,7 +77,7 @@ func add(store *Storage, i Instruction) {
 		binary.LittleEndian.PutUint16(valueBytes, valueInt)
 	}
 
-	store.setRegister(i.operandLeft, valueBytes)
+	store.write(i.operandLeft, valueBytes)
 
 	store.setZeroFlag(valueInt == 0)
 	store.setSignFlag(valueBytes[size-1]>>7 == 1)
@@ -86,8 +86,8 @@ func add(store *Storage, i Instruction) {
 func sub(store *Storage, i Instruction) {
 	size := int8(1 + i.w)
 
-	valueA := store.getOperandAsInt(i.operandLeft, size)
-	valueB := store.getOperandAsInt(i.operandRight, size)
+	valueA := store.readAsInt(i.operandLeft, size)
+	valueB := store.readAsInt(i.operandRight, size)
 
 	valueInt := valueA - valueB
 	var valueBytes []byte
@@ -98,7 +98,7 @@ func sub(store *Storage, i Instruction) {
 		binary.LittleEndian.PutUint16(valueBytes, valueInt)
 	}
 
-	store.setRegister(i.operandLeft, valueBytes)
+	store.write(i.operandLeft, valueBytes)
 
 	store.setZeroFlag(valueInt == 0)
 	store.setSignFlag(valueBytes[size-1]>>7 == 1)
@@ -107,8 +107,8 @@ func sub(store *Storage, i Instruction) {
 func cmp(store *Storage, i Instruction) {
 	size := int8(1 + i.w)
 
-	valueA := store.getOperandAsInt(i.operandLeft, size)
-	valueB := store.getOperandAsInt(i.operandRight, size)
+	valueA := store.readAsInt(i.operandLeft, size)
+	valueB := store.readAsInt(i.operandRight, size)
 
 	fmt.Print("writing nothing to internal ")
 
@@ -183,48 +183,41 @@ type Storage struct {
 
 // Return the imediate value or lookup the register.
 // Memory acces not implemented.
-func (store *Storage) getOperandAsBytes(operand string, size int8) []byte {
+func (store *Storage) read(location string, size int8) []byte {
 	value := make([]byte, size)
-	tmp, err := strconv.ParseInt(operand, 10, 16)
+	tmp, err := strconv.ParseInt(location, 10, 16)
 	if err == nil {
 		// Then operandRight is an imediate
 		binary.LittleEndian.PutUint16(value, uint16(tmp))
-	} else {
-		// Then operandRight is a register / memory
-		offset := registersOffsets[operand]
-		value = store.internal[offset : offset+size]
+		return value
 	}
+
+	// Then operandRight is a register or memory
+	offset := registersOffsets[location]
+	value = store.internal[offset : offset+size]
+
 	return value
 }
 
-// Save as getOperandAsBytes but converted to int with littleEndian format.
-func (store *Storage) getOperandAsInt(operand string, size int8) uint16 {
-	value := uint16(0)
-	tmp, err := strconv.ParseInt(operand, 10, 16)
-	if err == nil {
-		// Then operandRight is an imediate
-		value = uint16(tmp)
-
-	} else {
-		// Then operandRight is a register / memory
-		offset := registersOffsets[operand]
-		if size == 1 {
-			value = uint16((store.internal[offset]))
-		} else {
-			value = binary.LittleEndian.Uint16(
-				store.internal[offset : offset+size],
-			)
-		}
-	}
-	return value
+// Same as read but converted to int with littleEndian format.
+func (store *Storage) readAsInt(location string, size int8) uint16 {
+	raw := store.read(location, size)
+	return binary.LittleEndian.Uint16(raw)
 }
 
-func (store *Storage) setRegister(reg string, value []byte) {
-	offset := registersOffsets[reg]
+func (store *Storage) write(location string, value []byte) {
+	offset, isReg := registersOffsets[location]
+	if isReg {
+		store.writeToRegister(offset, location, value)
+	} else {
+		fmt.Print("something something memory")
+	}
+}
+
+func (store *Storage) writeToRegister(offset int8, reg string, value []byte) {
 	fmt.Printf("[%s 0x%02x->", reg, store.internal[offset:offset+2])
 	copy(store.internal[offset:], value)
 	fmt.Printf("[0x%02x] ", store.internal[offset:offset+2])
-
 }
 
 func (store *Storage) setZeroFlag(flag bool) {
