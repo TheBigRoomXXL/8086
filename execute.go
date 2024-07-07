@@ -187,6 +187,9 @@ func (store *Storage) read(location string, size int8) []byte {
 	tmp, err := strconv.ParseInt(location, 10, 16)
 	if err == nil {
 		// Then operandRight is an imediate
+		if size == 1 {
+			return []byte{byte(tmp)}
+		}
 		value := make([]byte, size)
 		binary.LittleEndian.PutUint16(value, uint16(tmp))
 		return value
