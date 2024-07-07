@@ -23,7 +23,7 @@ add al, 9
 sub bx, [bx + si]
 sub bx, [bp]
 sub si, 2
-sub dp, 2
+sub bp, 2
 sub cx, 8
 sub bx, [bp]
 sub cx, [bx + 2]
@@ -47,7 +47,7 @@ sub al, 9
 cmp bx, [bx + si]
 cmp bx, [bp]
 cmp si, 2
-cmp dp, 2
+cmp bp, 2
 cmp cx, 8
 cmp bx, [bp]
 cmp cx, [bx + 2]

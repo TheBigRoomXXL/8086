@@ -3,10 +3,10 @@ mov bx, -4093
 mov cx, 3841
 sub bx, cx
 mov sp, 998
-mov dp, 999
-cmp dp, sp
-add dp, 1027
-sub dp, 2026
+mov bp, 999
+cmp bp, sp
+add bp, 1027
+sub bp, 2026
 
 ====== EXECUTING ======
 writing 2 byte at offset 2: 0x0000-> 0x03f0
@@ -26,7 +26,7 @@ writing 2 byte at offset 10: 0xea07-> 0x0000(ZF true) (SF false)
 │ dx │ 00000000 │ 00000000 │
 ├────┼──────────┴──────────┤
 │ sp │ 11100110   00000011 │
-│ dp │ 00000000   00000000 │
+│ bp │ 00000000   00000000 │
 │ si │ 00000000   00000000 │
 │ di │ 00000000   00000000 │
 ├────┼─────────────────────┤

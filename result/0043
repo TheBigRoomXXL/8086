@@ -4,7 +4,7 @@ mov bx, 2
 mov cx, 3
 mov dx, 4
 mov sp, 5
-mov dp, 6
+mov bp, 6
 mov si, 7
 mov di, 8
 mov ax, 1
@@ -12,7 +12,7 @@ mov bx, 2
 mov cx, 3
 mov dx, 4
 mov sp, 5
-mov dp, 6
+mov bp, 6
 mov si, 7
 mov di, 8
 
@@ -34,7 +34,7 @@ writing 2 byte at offset 14: 0x0000-> 0x0800
 │ dx │ 0x04 │ 0x00 │
 ├────┼──────┴──────┤
 │ sp │ 0x05   0x00 │
-│ dp │ 0x06   0x00 │
+│ bp │ 0x06   0x00 │
 │ si │ 0x07   0x00 │
 │ di │ 0x08   0x00 │
 └────┴─────────────┘
