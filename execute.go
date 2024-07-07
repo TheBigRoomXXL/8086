@@ -323,7 +323,7 @@ var registersOffsets = map[string]int8{
 	"dh": 6,
 	"dl": 7,
 	"sp": 8,
-	"dp": 10,
+	"bp": 10,
 	"si": 12,
 	"di": 14,
 	"fl": 14,

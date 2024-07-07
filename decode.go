@@ -450,7 +450,7 @@ var registers = map[byte]string{
 	0b0101: "dx",
 	0b0111: "bx",
 	0b1001: "sp",
-	0b1011: "dp",
+	0b1011: "bp",
 	0b1101: "si",
 	0b1111: "di",
 }
