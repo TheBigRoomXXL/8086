@@ -241,7 +241,6 @@ func (store *Storage) writeToRegister(offset int8, reg string, value []byte) {
 
 func (store *Storage) writeToMemory(location string, value []byte) {
 	// Get Adress
-	fmt.Println(value)
 	address := store.effectiveAdressCalculation(location, int8(len(value)))
 
 	// Write
@@ -263,7 +262,6 @@ func (store *Storage) effectiveAdressCalculation(EACalc string, size int8) uint1
 	locations := strings.Split(EACalc, "+")
 	for _, loc := range locations {
 		address += store.readAsInt(loc, 2)
-		fmt.Println(address, 2)
 	}
 	return address
 }
